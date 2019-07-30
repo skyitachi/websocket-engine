@@ -16,7 +16,7 @@ public:
   }
   
   Buffer(size_t len) {
-    buf_.resize(kInitialSize);
+    buf_.resize(len);
   }
   
   size_t remaining() {
@@ -24,7 +24,11 @@ public:
   }
   
   size_t size() {
-    return writeIndex_ - readIndex_;
+    return buf_.size();
+  }
+  
+  size_t readableBytes() {
+    return size_t(writeIndex_ - readIndex_);
   }
   
   char *begin() {
@@ -32,8 +36,8 @@ public:
   }
   
   // NOTE: 要复制吗
-  void read(char *dst, ssize_t len) {
-    assert(size() >= len);
+  void read(char *dst, size_t len) {
+    assert(readableBytes() >= len);
     memcpy(dst, peek(), len);
     retrieve(len);
   }
@@ -49,6 +53,13 @@ public:
   size_t ensureSpace(ssize_t len) {
     if (remaining() >= len) {
       return remaining();
+    }
+    // 此时需要移动一下内存，保证一下空间
+    if (readIndex_ + remaining() >= len) {
+      std::copy(buf_.begin() + readIndex_, buf_.begin() + writeIndex_, buf_.begin());
+      writeIndex_ -= readIndex_;
+      readIndex_ = 0;
+      return len;
     }
     ssize_t left = len - remaining();
     buf_.resize(buf_.size() + left);
@@ -74,10 +85,29 @@ public:
   int getWriteIndex() {
     return writeIndex_;
   }
-  ~Buffer() {
-    BOOST_LOG_TRIVIAL(info) << "buffer destructor";
-    BOOST_LOG_TRIVIAL(debug) << "buffer destructor";
+  
+  void clear() {
+    writeIndex_ = readIndex_ = 0;
   }
+  
+  void shrinkToFit() {
+    shrink(readableBytes());
+  }
+  
+  // 如果
+  void shrink(size_t len) {
+    if (readIndex_ > 0) {
+      std::copy(buf_.begin() + readIndex_, buf_.begin() + writeIndex_, buf_.begin());
+      writeIndex_ -= readIndex_;
+      readIndex_ = 0;
+    }
+    // 阶段数据
+    if (readableBytes() > len) {
+      writeIndex_ = len;
+    }
+    buf_.resize(len);
+  }
+  
 private:
   std::vector<char> buf_;
   int readIndex_ = 0;

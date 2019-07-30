@@ -14,13 +14,19 @@ include_directories(./include)
 #    http_parser.2.9.2
 #        HINTS ${HTTP_PARSER_LIB_PATH}
 #)
+
 aux_source_directory(./src SOURCE)
 
 add_executable(test main.cpp ${SOURCE})
 
+# tests
+add_executable(test_buffer test/buffer_test.cpp src/Buffer.cpp)
+target_link_libraries(test_buffer gtest gmock)
+
 IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     link_directories(/usr/local/lib)
     target_link_libraries(test uv boost_log-mt)
+    target_link_libraries(test_buffer boost_log-mt)
 ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_libraries(test uv boost_log pthread http_parser)
 ENDIF ()

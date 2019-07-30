@@ -45,18 +45,17 @@ namespace ws {
   }
   
   void WebSocketServer::onHeaderComplete() {
-  
+    // TODO: handshake logic
   }
   
   void WebSocketServer::handleMessage(const TcpConnectionPtr& ptr, Buffer& buf) {
     if (status_ == INITIAL) {
       status_ = HANDSHAKE;
-      BOOST_LOG_TRIVIAL(info) << "current buffer size: " << buf.size() << " current buffer: " << std::string(buf.peek(), buf.size());
-      size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, buf.peek(), buf.size());
+      size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, buf.peek(), buf.readableBytes());
       buf.retrieve(nparsed);
       
     } else {
-      size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, buf.peek(), buf.size());
+      size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, buf.peek(), buf.readableBytes());
       buf.retrieve(nparsed);
     }
   }
