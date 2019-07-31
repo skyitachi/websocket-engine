@@ -66,6 +66,10 @@ namespace ws {
       pool_.setThreadNums(nums);
     }
     
+    bool isSingleThread() {
+      return pool_.isSingleThread();
+    }
+    
     
     MessageCallback messageCallback;
     ConnectionCallback connectionCallback;

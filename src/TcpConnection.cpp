@@ -19,17 +19,16 @@ namespace ws {
   static void on_uv_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
     auto conn = (TcpConnection* ) stream->data;
     assert(conn);
-    conn->buf.updateWriteIndex(conn->buf.getWriteIndex() + nread);
     
     if (nread < 0) {
       BOOST_LOG_TRIVIAL(info) << "close connection " << conn->id() << " passively";
       conn->handleClose();
     } else if (nread == 0) {
-      BOOST_LOG_TRIVIAL(debug) << conn->id() << " read 0 bytes";
-      // TODO: read = 0 意味着什么
       conn->close();
     } else {
-      BOOST_LOG_TRIVIAL(debug) << "receive message: " << std::string(buf->base, nread);
+      BOOST_LOG_TRIVIAL(info) << "read data in TcpConnection";
+      BOOST_LOG_TRIVIAL(debug) << "conn id " << conn->id() << " receive message: " << std::string(buf->base, nread);
+      conn->buf.updateWriteIndex(conn->buf.getWriteIndex() + nread);
       conn->handleMessage(nread);
     }
   }
@@ -45,9 +44,13 @@ namespace ws {
   
   int TcpConnection::send(const char *sendBuf, size_t len) {
     // write_req 这类的对象不需要传递data，使用handle->data即可
+    BOOST_LOG_TRIVIAL(debug) << "current state : " << state_;
     assert(state_ == kConnected);
     lastWrite_ = len;
+    BOOST_LOG_TRIVIAL(debug) << "to send data: " << std::string(sendBuf, len);
+    
     uv_buf_t uv_buf = uv_buf_init(const_cast<char *>(sendBuf), len);
+    setState(kWritting);
     
     // NOTE: 如果使用uv_try_write就需要自己管理output buffer了, try_write不会queue write request
     return uv_write(new uv_write_t, stream(), &uv_buf, 1, [](uv_write_t* req, int status) {
@@ -55,6 +58,12 @@ namespace ws {
       std::unique_ptr<uv_write_t> reqHolder(req);
       auto conn = (TcpConnection *)req->handle->data;
       assert(conn);
+      if (conn->state_ == kDisconnecting) {
+        conn->setState(kConnected);
+        conn->handleClose();
+        return;
+      }
+      conn->setState(kConnected);
       if (status < 0) {
         BOOST_LOG_TRIVIAL(error) << "connection write error " << uv_strerror(status);
         conn->handleClose();
@@ -85,8 +94,12 @@ namespace ws {
   }
   
   void TcpConnection::handleClose() {
+    if (state_ == kWritting) {
+      BOOST_LOG_TRIVIAL(debug) << "conn id " << id() << " disconnect while writting";
+      setState(kDisconnecting);
+      return;
+    }
     assert(state_ == kConnected || state_ == kConnecting);
-    // TODO: 是否要判断当前的write是否被写完
     setState(kDisconnected);
     readStop();
     connectionCallback_(shared_from_this());

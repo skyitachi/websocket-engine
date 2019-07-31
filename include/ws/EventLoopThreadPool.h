@@ -19,6 +19,10 @@ namespace ws {
     EventLoopThreadPool(uv_loop_t* loop): baseLoop_(loop) {}
     void setThreadNums(int threadNums);
     
+    bool isSingleThread() {
+      return threadList_.size() == 0;
+    }
+    
     uv_loop_t* getNextLoop();
     
     ~EventLoopThreadPool() {

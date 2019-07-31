@@ -28,7 +28,7 @@ class TcpConnection:
     typedef std::function<void (const TcpConnectionPtr&) > WriteCompleteCallback;
     
     enum StateE {
-      kConnecting, kConnected, kDisconnected, kDisconnecting
+      kConnecting, kConnected, kDisconnected, kDisconnecting, kWritting
     };
     
     TcpConnection(uv_loop_t *loop, int id) : loop_(loop), id_(id), tcp_(std::make_unique<uv_tcp_t>()), buf(kBufferLen) {

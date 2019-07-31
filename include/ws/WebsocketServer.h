@@ -7,50 +7,31 @@
 
 #include "TcpServer.h"
 #include "../http_parser/http_parser.h"
+#include "WebSocketConnection.h"
 
 #include <uv.h>
+#include <map>
 
 
 namespace ws {
   using namespace std::placeholders;
   
-  class WebSocketServer: public TcpServer {
+  class WebSocketServer: private TcpServer {
   public:
-    enum Status {
-      INITIAL,
-      HANDSHAKE,
-      CONNECT,
-      CLOSE
-    };
     
-    WebSocketServer(uv_loop_t* loop): TcpServer(loop), status_(INITIAL) {
-      httpParserPtr = std::make_unique<http_parser>();
-      http_parser_init(httpParserPtr.get(), HTTP_REQUEST);
-  
-      initHttpParser();
+    WebSocketServer(uv_loop_t* loop): TcpServer(loop) {
       setMessageCallback(std::bind(&WebSocketServer::handleMessage, this, _1, _2));
+      setConnectionCallback(std::bind(&WebSocketServer::handleConnection, this, _1));
     }
     
-    void setHeaderValue(std::string value) {
-      assert(!lastHeaderField_.empty());
-      headers_[lastHeaderField_] = value;
-      lastHeaderField_ = "";
+    int Listen(const std::string& host, int port) {
+      return listen(host, port);
     }
     
-    void setLastHeaderField(std::string field) {
-      lastHeaderField_ = field;
-    }
-    
-    void onHeaderComplete();
-
   private:
-    void handleMessage(const TcpConnectionPtr&, Buffer& );
-    void initHttpParser();
-    std::unique_ptr<http_parser> httpParserPtr;
-    http_parser_settings httpParserSettings_;
-    Status status_;
-    std::unordered_map<std::string, std::string> headers_;
-    std::string lastHeaderField_;
+    void handleMessage(const TcpConnectionPtr&, Buffer&);
+    void handleConnection(const TcpConnectionPtr&);
+    std::map<int, WebSocketConnectionPtr> wsConns_;
   };
   
 }
