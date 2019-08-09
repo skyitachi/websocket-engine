@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <boost/log/trivial.hpp>
+#include <arpa/inet.h>
 
 class Buffer {
 public:
@@ -106,6 +107,27 @@ public:
       writeIndex_ = len;
     }
     buf_.resize(len);
+  }
+  
+  void putByte(uint8_t byte) {
+    write((const char *)&byte, 1);
+  }
+  
+  // 网络序
+  void putUInt16(uint16_t word) {
+    uint16_t network = htons(word);
+    write((const char *)&network, 2);
+  }
+  void putUInt32(uint32_t integer) {
+    uint32_t network = htonl(integer);
+    write((const char *)&network, 4);
+  }
+  
+  void putUInt64(uint64_t bigInt) {
+    auto high = (uint32_t)(bigInt >> 32);
+    auto low = (uint32_t)(bigInt & 0xfffffffff);
+    putUInt32(high);
+    putUInt32(low);
   }
   
 private:

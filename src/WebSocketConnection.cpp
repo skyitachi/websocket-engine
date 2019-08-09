@@ -22,7 +22,7 @@ namespace ws {
     WebSocketConnection *conn = (WebSocketConnection *) httpParser->data;
     assert(conn);
     conn->setLastHeaderField(std::string(f, len));
-    BOOST_LOG_TRIVIAL(info) << "receive header field: " << std::string(f, len);
+//    BOOST_LOG_TRIVIAL(info) << "receive header field: " << std::string(f, len);
     return 0;
   }
   
@@ -30,7 +30,7 @@ namespace ws {
     WebSocketConnection *conn = (WebSocketConnection *) httpParser->data;
     assert(conn);
     conn->setHeaderValue(std::string(v, len));
-    BOOST_LOG_TRIVIAL(info) << "receive header value: " << std::string(v, len);
+//    BOOST_LOG_TRIVIAL(info) << "receive header value: " << std::string(v, len);
     return 0;
   }
   
@@ -94,6 +94,8 @@ namespace ws {
     const std::string acceptKey = computeAcceptKey(headers_["Sec-WebSocket-Key"]);
     BOOST_LOG_TRIVIAL(debug) << "base64 string: " << acceptKey;
     conn_->send(UPGRADE_RESPONSE + "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n");
+    handleConnection();
+    // emit connect event
   }
  
   
@@ -122,4 +124,40 @@ namespace ws {
     httpParserSettings_.on_message_complete = on_status_cb;
   }
   
+  // text, 默认不分片
+  int WebSocketConnection::sendMessage(const std::string &data) {
+    uint8_t control = 0xff;
+    // set FIN
+    control = control & 0x8f;
+    // set opcode txt
+    control = control & 0xf1;
+    buf_.putByte(control);
+    if (data.size() < 126) {
+      buf_.putByte((uint8_t) data.size());
+    } else if (data.size() <= 0xffff) {
+      buf_.putByte(126);
+      buf_.putUInt16((uint16_t)data.size());
+    } else if ((uint64_t) data.size() > 0xfff) {
+      buf_.putByte(127);
+      buf_.putUInt64((uint64_t)data.size());
+    }
+    buf_.write(data.c_str(), data.size());
+    size_t readable = buf_.readableBytes();
+    int ret = conn_->send(buf_.peek(), readable);
+    buf_.retrieve(readable);
+    return ret;
+  }
+  
+  // NOTE: 解析websocket data frame
+  void WebSocketConnection::decode(Buffer& inputBuffer) {
+  }
+  
+  void WebSocketConnection::parse(Buffer& inputBuffer) {
+    if (status_ == INITIAL) {
+      size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, inputBuffer.peek(), inputBuffer.readableBytes());
+      inputBuffer.retrieve(nparsed);
+    } else if (status_ == CONNECT) {
+      decode(inputBuffer);
+    }
+  }
 }

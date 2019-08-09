@@ -12,13 +12,18 @@ namespace ws {
     int id = ptr->id();
     if (wsConns_.find(id) == wsConns_.end()) {
       wsConns_[id] = std::make_shared<WebSocketConnection>(ptr);
+      if (connCb_ != nullptr) {
+        wsConns_[id]->onConnection(connCb_);
+      }
+      if (closeCb_ != nullptr) {
+        wsConns_[id]->onClose(closeCb_);
+      }
     }
     BOOST_LOG_TRIVIAL(debug) << "conn id " << id << " send message";
     
     BOOST_LOG_TRIVIAL(debug) << "conn id " << id << " handle message: " << buf.readableBytes();
     auto connPtr = wsConns_[id];
-    size_t nParsed = connPtr->parse(buf.peek(), buf.readableBytes());
-    buf.retrieve(nParsed);
+    connPtr->parse(buf);
   }
   
   void WebSocketServer::handleConnection(const ws::TcpConnectionPtr &conn) {

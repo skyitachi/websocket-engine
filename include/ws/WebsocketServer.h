@@ -18,7 +18,8 @@ namespace ws {
   
   class WebSocketServer: private TcpServer {
   public:
-    
+    typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
+  
     WebSocketServer(uv_loop_t* loop): TcpServer(loop) {
       setMessageCallback(std::bind(&WebSocketServer::handleMessage, this, _1, _2));
       setConnectionCallback(std::bind(&WebSocketServer::handleConnection, this, _1));
@@ -28,10 +29,20 @@ namespace ws {
       return listen(host, port);
     }
     
+    void onConnection(WSConnectionCallback&& cb) {
+      connCb_ = std::move(cb);
+    }
+    
+    void onClose(WSConnectionCallback&& cb) {
+      closeCb_ = std::move(cb);
+    }
+    
   private:
     void handleMessage(const TcpConnectionPtr&, Buffer&);
     void handleConnection(const TcpConnectionPtr&);
     std::map<int, WebSocketConnectionPtr> wsConns_;
+    WSConnectionCallback connCb_;
+    WSConnectionCallback closeCb_;
   };
   
 }

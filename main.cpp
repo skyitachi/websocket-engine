@@ -13,6 +13,11 @@ int main() {
   
   WebSocketServer server(uv_default_loop());
   
+  server.onConnection([](const WebSocketConnectionPtr& conn) {
+    BOOST_LOG_TRIVIAL(info) << "websocket connection established";
+    conn->sendMessage("hello world");
+  });
+  
   int ret = server.Listen("0.0.0.0", 3000);
   
   if (ret) {

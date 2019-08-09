@@ -45,9 +45,12 @@ namespace ws {
   int TcpConnection::send(const char *sendBuf, size_t len) {
     // write_req 这类的对象不需要传递data，使用handle->data即可
     BOOST_LOG_TRIVIAL(debug) << "current state : " << state_;
+    if (state_ == kWritting) {
+      buf.write(sendBuf, len);
+      return 0;
+    }
     assert(state_ == kConnected);
     lastWrite_ = len;
-    BOOST_LOG_TRIVIAL(debug) << "to send data: " << std::string(sendBuf, len);
     
     uv_buf_t uv_buf = uv_buf_init(const_cast<char *>(sendBuf), len);
     setState(kWritting);
@@ -71,6 +74,10 @@ namespace ws {
       }
       conn->handleWrite(conn->lastWrite());
       conn->resetLastWrite();
+      if (conn->buf.readableBytes() > 0) {
+        conn->send(conn->buf.peek(), conn->buf.readableBytes());
+        conn->buf.retrieve(conn->buf.readableBytes());
+      }
     });
   }
   

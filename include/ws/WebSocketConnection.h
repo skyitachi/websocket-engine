@@ -12,8 +12,16 @@
 #include <memory>
 
 namespace ws {
-  class WebSocketConnection: util::NoCopyable {
+  class WebSocketConnection:
+    util::NoCopyable,
+    public std::enable_shared_from_this<WebSocketConnection> {
+    
   public:
+    
+    typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
+    typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
+    typedef std::function<void (const WebSocketConnectionPtr&)> WSMessageCallback;
+    
     enum Status {
       INITIAL,
       HANDSHAKE,
@@ -28,11 +36,17 @@ namespace ws {
       
     }
     
-    size_t parse(const char *data, size_t len) {
-      return http_parser_execute(httpParserPtr.get(), &httpParserSettings_, data, len);
-    }
+    void parse(Buffer& buf);
     
-    void initHttpParser();
+    size_t parse(const char *data, size_t len) {
+      if (status_ == INITIAL) {
+        // NOTE: parse handshake
+        return http_parser_execute(httpParserPtr.get(), &httpParserSettings_, data, len);
+      } else if (status_ == CONNECT) {
+        // NOTE: pass websocket frames
+        return decode(data, len);
+      }
+    }
     
     void setHeaderValue(std::string&& value) {
       assert(!lastHeaderField_.empty());
@@ -45,6 +59,22 @@ namespace ws {
     }
     
     void onHeaderComplete();
+    
+    // TODO: callback 是如何使用move的
+    void onConnection(WSConnectionCallback& cb) {
+      connCb_ = std::move(cb);
+    }
+    
+    void onClose(WSConnectionCallback& cb) {
+      closeCb_ = std::move(cb);
+    }
+    
+    void onMessage(WSMessageCallback&& cb) {
+      wsMessageCallback_ = std::move(cb);
+    }
+    
+    // send websocket frame
+    int sendMessage(const std::string&);
 
   private:
     const std::string computeAcceptKey(const std::string&);
@@ -54,8 +84,29 @@ namespace ws {
     Status status_;
     std::unordered_map<std::string, std::string> headers_;
     std::string lastHeaderField_;
+    WSConnectionCallback connCb_;
+    WSConnectionCallback closeCb_;
+    WSMessageCallback wsMessageCallback_;
+   
+    Buffer buf_;
     
+    void handleConnection() {
+      status_ = CONNECT;
+      if (connCb_ != nullptr) {
+        connCb_(shared_from_this());
+      }
+    }
+    
+    void handleClose() {
+      if (closeCb_ != nullptr) {
+        closeCb_(shared_from_this());
+      }
+    }
+    
+    void initHttpParser();
+    void decode(Buffer& buf);
   };
+  
   typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
   
 }

@@ -137,6 +137,7 @@ class TcpConnection:
       state_ = state;
     }
     
+    // TODO: 要支持scatter io
     int send(const char *, size_t);
     
     int send(const std::string& data) {
