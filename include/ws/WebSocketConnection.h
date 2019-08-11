@@ -20,7 +20,7 @@ namespace ws {
     
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
-    typedef std::function<void (const WebSocketConnectionPtr&)> WSMessageCallback;
+    typedef std::function<void (const std::string&& )> WSMessageCallback;
     
     enum Status {
       INITIAL,
@@ -36,17 +36,7 @@ namespace ws {
       
     }
     
-    void parse(Buffer& buf);
-    
-    size_t parse(const char *data, size_t len) {
-      if (status_ == INITIAL) {
-        // NOTE: parse handshake
-        return http_parser_execute(httpParserPtr.get(), &httpParserSettings_, data, len);
-      } else if (status_ == CONNECT) {
-        // NOTE: pass websocket frames
-        return decode(data, len);
-      }
-    }
+    void parse(Buffer &inputBuffer);
     
     void setHeaderValue(std::string&& value) {
       assert(!lastHeaderField_.empty());
@@ -104,7 +94,7 @@ namespace ws {
     }
     
     void initHttpParser();
-    void decode(Buffer& buf);
+    void decode(Buffer &inputBuffer);
   };
   
   typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;

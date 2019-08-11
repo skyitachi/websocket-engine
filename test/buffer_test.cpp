@@ -5,7 +5,7 @@
 #include <ws/Buffer.h>
 
 TEST(BufferBase, Case1) {
-  Buffer buf(10);
+  ws::Buffer buf(10);
   EXPECT_EQ(buf.readableBytes(), 0);
   buf.write("123", 3);
   EXPECT_EQ(buf.readableBytes(), 3);
@@ -34,7 +34,7 @@ TEST(BufferBase, Case1) {
 }
 
 TEST(BufferAdvance, Case2) {
-  Buffer buf(10);
+  ws::Buffer buf(10);
   buf.write("123456", 6);
   char tmp[1024];
   buf.read(tmp, 3);

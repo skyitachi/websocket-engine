@@ -26,8 +26,7 @@ namespace ws {
     } else if (nread == 0) {
       conn->close();
     } else {
-      BOOST_LOG_TRIVIAL(info) << "read data in TcpConnection";
-      BOOST_LOG_TRIVIAL(debug) << "conn id " << conn->id() << " receive message: " << std::string(buf->base, nread);
+      BOOST_LOG_TRIVIAL(debug) << "conn id " << conn->id() << " received " << nread << " bytes data";
       conn->buf.updateWriteIndex(conn->buf.getWriteIndex() + nread);
       conn->handleMessage(nread);
     }

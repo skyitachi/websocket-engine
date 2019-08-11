@@ -2,7 +2,7 @@
 // Created by skyitachi on 2019-07-29.
 //
 
-#include <ws/WebsocketServer.h>
+#include <ws/WebSocketServer.h>
 #include <boost/log/trivial.hpp>
 
 namespace ws {
@@ -19,8 +19,6 @@ namespace ws {
         wsConns_[id]->onClose(closeCb_);
       }
     }
-    BOOST_LOG_TRIVIAL(debug) << "conn id " << id << " send message";
-    
     BOOST_LOG_TRIVIAL(debug) << "conn id " << id << " handle message: " << buf.readableBytes();
     auto connPtr = wsConns_[id];
     connPtr->parse(buf);

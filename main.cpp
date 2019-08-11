@@ -3,7 +3,7 @@
 //
 
 #include <uv.h>
-#include <ws/WebsocketServer.h>
+#include <ws/WebSocketServer.h>
 #include <boost/log/trivial.hpp>
 #include <iostream>
 
@@ -16,6 +16,11 @@ int main() {
   server.onConnection([](const WebSocketConnectionPtr& conn) {
     BOOST_LOG_TRIVIAL(info) << "websocket connection established";
     conn->sendMessage("hello world");
+    
+    conn->onMessage([conn](const std::string&& message) {
+      BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message;
+      conn->sendMessage(message);
+    });
   });
   
   int ret = server.Listen("0.0.0.0", 3000);

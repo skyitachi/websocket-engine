@@ -4,6 +4,7 @@
 #include <ws/WebSocketConnection.h>
 #include <boost/compute/detail/sha1.hpp>
 #include <boost/beast/core/detail/base64.hpp>
+#include <boost/format.hpp>
 
 namespace ws {
   const char *BAD_REQUEST = "HTTP/1.1 400 Bad Request\r\n\r\n";
@@ -148,11 +149,54 @@ namespace ws {
     return ret;
   }
   
-  // NOTE: 解析websocket data frame
-  void WebSocketConnection::decode(Buffer& inputBuffer) {
+  // NOTE: 解析websocket data frame, 一般而言都是客户端的消息
+  // NOTE: 先使用stack variable
+  void WebSocketConnection::decode(Buffer &inputBuffer) {
+    // NOTE: 有状态的
+    byte firstByte = inputBuffer.readTypedNumber<byte>();
+    bool isFin = false;
+    if (firstByte >> 7) {
+      isFin = true;
+    }
+//    BOOST_LOG_TRIVIAL(debug) << "firstByte = " << (int)firstByte;
+//    BOOST_LOG_TRIVIAL(debug) << "firstByte = " << boost::format("%2x") % firstByte;
+    auto opcode = firstByte & 0x0f;
+    byte secondByte = inputBuffer.readTypedNumber<byte>();
+    // NOTE: 客户端的必须mask
+    bool masked = (secondByte >> 7) == 1;
+    uint64_t payloadLength = secondByte & 0x7f;
+    if (payloadLength == 126) {
+      payloadLength = inputBuffer.readTypedNumber<uint16_t >();
+    } else if (payloadLength == 127) {
+      payloadLength = inputBuffer.readTypedNumber<uint64_t >();
+    }
+    
+    switch (opcode) {
+      case 1:
+        // Text
+        if (masked) {
+          if (isFin) {
+            char maskKey[4];
+            inputBuffer.read(maskKey, 4);
+            std::string decoded;
+            decoded.resize(payloadLength);
+            inputBuffer.read(&(*decoded.begin()), payloadLength);
+            for (auto it = decoded.begin(); it != decoded.end(); it++) {
+              auto idx = it - decoded.begin();
+              *it = (uint8_t)(*it) ^ (uint8_t) maskKey[idx % 4];
+            }
+            if (wsMessageCallback_ != nullptr) {
+              wsMessageCallback_(std::move(decoded));
+            }
+          }
+        }
+        break;
+      default: break;
+    }
+    
   }
   
-  void WebSocketConnection::parse(Buffer& inputBuffer) {
+  void WebSocketConnection::parse(Buffer &inputBuffer) {
     if (status_ == INITIAL) {
       size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, inputBuffer.peek(), inputBuffer.readableBytes());
       inputBuffer.retrieve(nparsed);
