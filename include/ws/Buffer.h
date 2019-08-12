@@ -76,10 +76,18 @@ namespace ws {
     }
     
     // NOTE: 自动扩容
-    void write(const char *buf, ssize_t len) {
+    void write(const char *buf, size_t len) {
       ensureSpace(len);
       std::copy(buf, buf + len, begin() + writeIndex_);
       writeIndex_ += len;
+    }
+    
+    void unwrite(size_t len) {
+      if (readableBytes() < len) {
+        updateWriteIndex(readIndex_);
+      } else {
+        updateWriteIndex(readIndex_ + readableBytes() - len);
+      }
     }
     
     void writeString(const std::string& input) {

@@ -170,38 +170,47 @@ namespace ws {
     } else if (payloadLength == 127) {
       payloadLength = inputBuffer.readTypedNumber<uint64_t >();
     }
+    size_t originSize = decodeBuf_.readableBytes();
+    
+    if (masked) {
+      char maskKey[4];
+      inputBuffer.read(maskKey, 4);
+      assert(payloadLength == inputBuffer.readableBytes());
+      decodeBuf_.write(inputBuffer.peek(), inputBuffer.readableBytes());
+      auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
+      char *begin = const_cast<char *>(decodeBuf_.peek() + originSize);
+      for (auto it = begin; it != readEnd; it++) {
+        auto idx = it - decodeBuf_.peek() - originSize;
+        *it = (uint8_t)(*it) ^ (uint8_t) maskKey[idx % 4];
+      }
+    } else {
+      decodeBuf_.write(inputBuffer.peek(), inputBuffer.readableBytes());
+    }
     
     switch (opcode) {
       case 1:
         // Text
-        if (masked) {
-          char maskKey[4];
-          inputBuffer.read(maskKey, 4);
-          size_t originSize = decodeBuf_.readableBytes();
-          decodeBuf_.ensureSpace(payloadLength);
-          inputBuffer.read(decodeBuf_.writeStart(), payloadLength);
-          auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
-          char *begin = const_cast<char *>(decodeBuf_.peek() + originSize);
-          for (auto it = begin; it != readEnd; it++) {
-            auto idx = it - decodeBuf_.peek() - originSize;
-            *it = (uint8_t)(*it) ^ (uint8_t) maskKey[idx % 4];
+        if (isFin) {
+          if (wsMessageCallback_ != nullptr) {
+            wsMessageCallback_(std::move(decodeBuf_.readString()));
           }
-          if (isFin) {
-            if (wsMessageCallback_ != nullptr) {
-              wsMessageCallback_(std::move(decodeBuf_.readString()));
-            }
-          }
-        } else if (!isFin) {
-          decodeBuf_.ensureSpace(payloadLength);
-          inputBuffer.read(decodeBuf_.writeStart(), payloadLength);
+        } else {
+          fragmentedOpCode_ = 1;
         }
         break;
       case 0:
-        if (!isFin) {
-        
-        } else {
-          //
+        if (isFin && wsMessageCallback_) {
+          if (fragmentedOpCode_ == 1) {
+            wsMessageCallback_(std::move(decodeBuf_.readString()));
+            fragmentedOpCode_ = 0;
+          }
         }
+      // PING
+      case 0x09:
+        // NOTE: must not be fragment
+        assert(isFin);
+        // ping frame may have application data and can be injected to fragmented frame
+        decodeBuf_.unwrite(payloadLength);
       default: break;
     }
     

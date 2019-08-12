@@ -21,6 +21,7 @@ namespace ws {
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
     typedef std::function<void (const std::string&& )> WSMessageCallback;
+    typedef std::function<void ()> WSPingCallback;
     
     enum Status {
       INITIAL,
@@ -62,6 +63,10 @@ namespace ws {
       wsMessageCallback_ = std::move(cb);
     }
     
+    void onPing(WSPingCallback&& cb) {
+      pingCallback_ = std::move(cb);
+    }
+    
     // send websocket frame
     int sendMessage(const std::string&);
 
@@ -76,9 +81,11 @@ namespace ws {
     WSConnectionCallback connCb_;
     WSConnectionCallback closeCb_;
     WSMessageCallback wsMessageCallback_;
+    WSPingCallback pingCallback_;
    
     Buffer buf_;
     Buffer decodeBuf_;
+    byte fragmentedOpCode_;
     
     void handleConnection() {
       status_ = CONNECT;
