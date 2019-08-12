@@ -17,7 +17,7 @@ namespace ws {
     public std::enable_shared_from_this<WebSocketConnection> {
     
   public:
-    
+    const int kInitialDecodeBufSize = 64;
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
     typedef std::function<void (const std::string&& )> WSMessageCallback;
@@ -29,11 +29,10 @@ namespace ws {
       CLOSE
     };
     
-    WebSocketConnection(const TcpConnectionPtr& ptr): conn_(ptr), status_(INITIAL) {
+    WebSocketConnection(const TcpConnectionPtr& ptr): conn_(ptr), status_(INITIAL), decodeBuf_(kInitialDecodeBufSize) {
       httpParserPtr = std::make_unique<http_parser>();
       http_parser_init(httpParserPtr.get(), HTTP_REQUEST);
       initHttpParser();
-      
     }
     
     void parse(Buffer &inputBuffer);
@@ -79,6 +78,7 @@ namespace ws {
     WSMessageCallback wsMessageCallback_;
    
     Buffer buf_;
+    Buffer decodeBuf_;
     
     void handleConnection() {
       status_ = CONNECT;

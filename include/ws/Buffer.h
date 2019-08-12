@@ -47,6 +47,10 @@ namespace ws {
       retrieve(len);
     }
     
+    std::string readString() {
+      return std::string(peek(), readableBytes());
+    }
+    
     const char *peek() {
       return begin() + readIndex_;
     }
@@ -76,6 +80,10 @@ namespace ws {
       ensureSpace(len);
       std::copy(buf, buf + len, begin() + writeIndex_);
       writeIndex_ += len;
+    }
+    
+    void writeString(const std::string& input) {
+      write(input.c_str(), input.size());
     }
     
     void retrieve(ssize_t len) {
@@ -135,28 +143,26 @@ namespace ws {
       putUInt32(low);
     }
     
-    byte readByte() {
-      byte b = (byte)*(peek());
-      readIndex_ += 1;
-      return b;
-    }
-    
-    uint16_t readUInt16() {
-      uint16_t ret = ntohs((uint16_t)*(peek()));
-      readIndex_ += 2;
-      return ret;
-    }
-    
     template <typename T>
     T readTypedNumber() {
       size_t size = sizeof(T);
+      assert(readableBytes() >= size);
       T ret;
-      if (size == 1) {
-        ret = (T)*peek();
-      } else if (size == 2) {
-        ret = ntohs((T)*peek());
-      } else if (size == 4) {
-        ret = ntohl((T)*(peek()));
+      switch (size) {
+        case 1:
+          ret = (T)*peek();
+          break;
+        case 2:
+          ret = ntohs((T)*peek());
+          break;
+        case 4:
+          ret = ntohl((T)*(peek()));
+          break;
+        case 8:
+          T high = ntohl((T)*(peek()));
+          T low = ntohl((T)*(peek() + 4));
+          ret = high << 32 + low;
+          break;
       }
       retrieve(size);
       return ret;

@@ -126,6 +126,7 @@ namespace ws {
   }
   
   // text, 默认不分片
+  // TODO: 如何避免data的拷贝
   int WebSocketConnection::sendMessage(const std::string &data) {
     uint8_t control = 0xff;
     // set FIN
@@ -151,6 +152,7 @@ namespace ws {
   
   // NOTE: 解析websocket data frame, 一般而言都是客户端的消息
   // NOTE: 先使用stack variable
+  // TODO: support fragmentation
   void WebSocketConnection::decode(Buffer &inputBuffer) {
     // NOTE: 有状态的
     byte firstByte = inputBuffer.readTypedNumber<byte>();
@@ -158,8 +160,6 @@ namespace ws {
     if (firstByte >> 7) {
       isFin = true;
     }
-//    BOOST_LOG_TRIVIAL(debug) << "firstByte = " << (int)firstByte;
-//    BOOST_LOG_TRIVIAL(debug) << "firstByte = " << boost::format("%2x") % firstByte;
     auto opcode = firstByte & 0x0f;
     byte secondByte = inputBuffer.readTypedNumber<byte>();
     // NOTE: 客户端的必须mask
@@ -175,22 +175,33 @@ namespace ws {
       case 1:
         // Text
         if (masked) {
+          char maskKey[4];
+          inputBuffer.read(maskKey, 4);
+          size_t originSize = decodeBuf_.readableBytes();
+          decodeBuf_.ensureSpace(payloadLength);
+          inputBuffer.read(decodeBuf_.writeStart(), payloadLength);
+          auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
+          char *begin = const_cast<char *>(decodeBuf_.peek() + originSize);
+          for (auto it = begin; it != readEnd; it++) {
+            auto idx = it - decodeBuf_.peek() - originSize;
+            *it = (uint8_t)(*it) ^ (uint8_t) maskKey[idx % 4];
+          }
           if (isFin) {
-            char maskKey[4];
-            inputBuffer.read(maskKey, 4);
-            std::string decoded;
-            decoded.resize(payloadLength);
-            inputBuffer.read(&(*decoded.begin()), payloadLength);
-            for (auto it = decoded.begin(); it != decoded.end(); it++) {
-              auto idx = it - decoded.begin();
-              *it = (uint8_t)(*it) ^ (uint8_t) maskKey[idx % 4];
-            }
             if (wsMessageCallback_ != nullptr) {
-              wsMessageCallback_(std::move(decoded));
+              wsMessageCallback_(std::move(decodeBuf_.readString()));
             }
           }
+        } else if (!isFin) {
+          decodeBuf_.ensureSpace(payloadLength);
+          inputBuffer.read(decodeBuf_.writeStart(), payloadLength);
         }
         break;
+      case 0:
+        if (!isFin) {
+        
+        } else {
+          //
+        }
       default: break;
     }
     
