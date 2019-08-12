@@ -211,6 +211,9 @@ namespace ws {
         assert(isFin);
         // ping frame may have application data and can be injected to fragmented frame
         decodeBuf_.unwrite(payloadLength);
+        if (pingCallback_ != nullptr) {
+          pingCallback_();
+        }
       default: break;
     }
     

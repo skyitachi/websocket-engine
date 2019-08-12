@@ -21,6 +21,9 @@ int main() {
       BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message;
       conn->sendMessage(message);
     });
+    conn->onPing([]() {
+      BOOST_LOG_TRIVIAL(info) << "receive ping";
+    });
   });
   
   int ret = server.Listen("0.0.0.0", 3000);
