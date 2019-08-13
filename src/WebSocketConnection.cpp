@@ -133,26 +133,50 @@ namespace ws {
     control = control & 0x8f;
     // set opcode txt
     control = control & 0xf1;
-    buf_.putByte(control);
+    outputBuf_.putByte(control);
     if (data.size() < 126) {
-      buf_.putByte((uint8_t) data.size());
+      outputBuf_.putByte((uint8_t) data.size());
     } else if (data.size() <= 0xffff) {
-      buf_.putByte(126);
-      buf_.putUInt16((uint16_t)data.size());
+      outputBuf_.putByte(126);
+      outputBuf_.putUInt16((uint16_t)data.size());
     } else if ((uint64_t) data.size() > 0xfff) {
-      buf_.putByte(127);
-      buf_.putUInt64((uint64_t)data.size());
+      outputBuf_.putByte(127);
+      outputBuf_.putUInt64((uint64_t)data.size());
     }
-    buf_.write(data.c_str(), data.size());
-    size_t readable = buf_.readableBytes();
-    int ret = conn_->send(buf_.peek(), readable);
-    buf_.retrieve(readable);
+    outputBuf_.write(data.c_str(), data.size());
+    size_t readable = outputBuf_.readableBytes();
+    int ret = conn_->send(outputBuf_.peek(), readable);
+    outputBuf_.retrieve(readable);
+    return ret;
+  }
+  
+  // NOTE: 客户端的必须要mask
+  int WebSocketConnection::ping() {
+    byte control = 0xff;
+    control = control & (byte) 0x8f;
+    control = control & (byte) 0xf9;
+    outputBuf_.putByte(control);
+    outputBuf_.putByte(0);
+    size_t readable = outputBuf_.readableBytes();
+    int ret = conn_->send(outputBuf_.peek(), readable);
+    outputBuf_.retrieve(readable);
+    return ret;
+  }
+  
+  int WebSocketConnection::pong() {
+    byte control = 0xff;
+    control = control & (byte) 0x8f;
+    control = control & (byte) 0xfa;
+    outputBuf_.putByte(control);
+    outputBuf_.putByte(0);
+    size_t readable = outputBuf_.readableBytes();
+    int ret = conn_->send(outputBuf_.peek(), readable);
+    outputBuf_.retrieve(readable);
     return ret;
   }
   
   // NOTE: 解析websocket data frame, 一般而言都是客户端的消息
   // NOTE: 先使用stack variable
-  // TODO: support fragmentation
   void WebSocketConnection::decode(Buffer &inputBuffer) {
     // NOTE: 有状态的
     byte firstByte = inputBuffer.readTypedNumber<byte>();
@@ -176,7 +200,8 @@ namespace ws {
       char maskKey[4];
       inputBuffer.read(maskKey, 4);
       assert(payloadLength == inputBuffer.readableBytes());
-      decodeBuf_.write(inputBuffer.peek(), inputBuffer.readableBytes());
+      decodeBuf_.write(inputBuffer);
+      
       auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
       char *begin = const_cast<char *>(decodeBuf_.peek() + originSize);
       for (auto it = begin; it != readEnd; it++) {
@@ -205,15 +230,27 @@ namespace ws {
             fragmentedOpCode_ = 0;
           }
         }
+        break;
       // PING
       case 0x09:
         // NOTE: must not be fragment
         assert(isFin);
         // ping frame may have application data and can be injected to fragmented frame
-        decodeBuf_.unwrite(payloadLength);
+        
         if (pingCallback_ != nullptr) {
-          pingCallback_();
+          pingCallback_(std::move(std::string(decodeBuf_.peek() + originSize, payloadLength)));
+          decodeBuf_.unwrite(payloadLength);
         }
+        pong();
+        break;
+      case 0x0a:
+        assert(isFin);
+        if (pongCallback_ != nullptr) {
+          pongCallback_(std::move(std::string(decodeBuf_.peek() + originSize, payloadLength)));
+          decodeBuf_.unwrite(payloadLength);
+        }
+        ping();
+        break;
       default: break;
     }
     

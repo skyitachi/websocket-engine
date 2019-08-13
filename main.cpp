@@ -21,8 +21,12 @@ int main() {
       BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message;
       conn->sendMessage(message);
     });
-    conn->onPing([]() {
+    conn->onPing([](std::string&& message) {
       BOOST_LOG_TRIVIAL(info) << "receive ping";
+    });
+    
+    conn->onPong([](std::string&& message) {
+      BOOST_LOG_TRIVIAL(info) << "receive pong";
     });
   });
   

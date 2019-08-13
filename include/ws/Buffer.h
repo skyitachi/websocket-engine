@@ -48,7 +48,9 @@ namespace ws {
     }
     
     std::string readString() {
-      return std::string(peek(), readableBytes());
+      auto ret = std::string(peek(), readableBytes());
+      retrieve(readableBytes());
+      return ret;
     }
     
     const char *peek() {
@@ -80,6 +82,14 @@ namespace ws {
       ensureSpace(len);
       std::copy(buf, buf + len, begin() + writeIndex_);
       writeIndex_ += len;
+    }
+    
+    void write(Buffer& src) {
+      auto len = src.readableBytes();
+      ensureSpace(len);
+      std::copy(src.peek(), src.peek() + len, writeStart());
+      writeIndex_ += len;
+      src.retrieve(len);
     }
     
     void unwrite(size_t len) {
