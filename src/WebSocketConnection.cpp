@@ -5,6 +5,7 @@
 #include <boost/compute/detail/sha1.hpp>
 #include <boost/beast/core/detail/base64.hpp>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 
 namespace ws {
   const char *BAD_REQUEST = "HTTP/1.1 400 Bad Request\r\n\r\n";
@@ -70,7 +71,13 @@ namespace ws {
       conn_->close();
       return;
     }
-    if (headers_.find("Upgrade") == headers_.end() || headers_["Upgrade"] != "websocket") {
+    if (headers_.find("Upgrade") == headers_.end()) {
+      conn_->send(BAD_REQUEST);
+      conn_->close();
+      return;
+    }
+    std::string newUpgrade = boost::to_lower_copy<std::string>(headers_["Upgrade"]);
+    if (newUpgrade != "websocket") {
       conn_->send(BAD_REQUEST);
       conn_->close();
       return;
@@ -175,6 +182,12 @@ namespace ws {
     return ret;
   }
   
+  int WebSocketConnection::close() {
+    unsigned char closeFrame[2] = {0x88, 0x00};
+    status_ = CLOSING;
+    return conn_->send((char* )closeFrame, 2);
+  }
+  
   // NOTE: 解析websocket data frame, 一般而言都是客户端的消息
   // NOTE: 先使用stack variable
   void WebSocketConnection::decode(Buffer &inputBuffer) {
@@ -184,7 +197,7 @@ namespace ws {
     if (firstByte >> 7) {
       isFin = true;
     }
-    auto opcode = firstByte & 0x0f;
+    auto opcode = firstByte & (byte)0x0f;
     byte secondByte = inputBuffer.readTypedNumber<byte>();
     // NOTE: 客户端的必须mask
     bool masked = (secondByte >> 7) == 1;
@@ -199,8 +212,8 @@ namespace ws {
     if (masked) {
       char maskKey[4];
       inputBuffer.read(maskKey, 4);
-      assert(payloadLength == inputBuffer.readableBytes());
-      decodeBuf_.write(inputBuffer);
+//      assert(payloadLength == inputBuffer.readableBytes());
+      decodeBuf_.write(inputBuffer, payloadLength);
       
       auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
       char *begin = const_cast<char *>(decodeBuf_.peek() + originSize);
@@ -213,26 +226,38 @@ namespace ws {
     }
     
     switch (opcode) {
+      case 0:
+        // continuation frame
+        if (isFin && wsMessageCallback_) {
+          if (fragmentedOpCode_ == 1 || fragmentedOpCode_ == 2) {
+            wsMessageCallback_(std::move(decodeBuf_.readString()));
+            fragmentedOpCode_ = 0;
+          }
+        }
+        break;
       case 1:
+      case 2:
         // Text
         if (isFin) {
           if (wsMessageCallback_ != nullptr) {
             wsMessageCallback_(std::move(decodeBuf_.readString()));
           }
         } else {
-          fragmentedOpCode_ = 1;
+          fragmentedOpCode_ = opcode;
         }
         break;
-      case 0:
-        if (isFin && wsMessageCallback_) {
-          if (fragmentedOpCode_ == 1) {
-            wsMessageCallback_(std::move(decodeBuf_.readString()));
-            fragmentedOpCode_ = 0;
-          }
+      case 0x08: {
+        // close
+        BOOST_LOG_TRIVIAL(debug) << "receive close frame";
+        if (status_ == CONNECT) {
+          close();
+          status_ = CLOSE;
+          conn_->close();
         }
         break;
-      // PING
+      }
       case 0x09:
+        // PING
         // NOTE: must not be fragment
         assert(isFin);
         // ping frame may have application data and can be injected to fragmented frame
@@ -260,7 +285,7 @@ namespace ws {
     if (status_ == INITIAL) {
       size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, inputBuffer.peek(), inputBuffer.readableBytes());
       inputBuffer.retrieve(nparsed);
-    } else if (status_ == CONNECT) {
+    } else if (status_ == CONNECT || status_ == CLOSING) {
       decode(inputBuffer);
     }
   }

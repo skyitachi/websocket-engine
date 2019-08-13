@@ -15,7 +15,6 @@ int main() {
   
   server.onConnection([](const WebSocketConnectionPtr& conn) {
     BOOST_LOG_TRIVIAL(info) << "websocket connection established";
-    conn->sendMessage("hello world");
     
     conn->onMessage([conn](const std::string&& message) {
       BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message;

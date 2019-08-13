@@ -86,6 +86,10 @@ namespace ws {
     
     void write(Buffer& src) {
       auto len = src.readableBytes();
+      write(src, len);
+    }
+    
+    void write(Buffer& src, size_t len) {
       ensureSpace(len);
       std::copy(src.peek(), src.peek() + len, writeStart());
       writeIndex_ += len;

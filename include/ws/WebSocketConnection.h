@@ -28,6 +28,7 @@ namespace ws {
       INITIAL,
       HANDSHAKE,
       CONNECT,
+      CLOSING,
       CLOSE
     };
     
