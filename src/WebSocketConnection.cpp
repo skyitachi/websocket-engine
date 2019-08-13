@@ -207,6 +207,7 @@ namespace ws {
     } else if (payloadLength == 127) {
       payloadLength = inputBuffer.readTypedNumber<uint64_t >();
     }
+    BOOST_LOG_TRIVIAL(debug) << "payload length: " << payloadLength << " masked: " << masked;
     size_t originSize = decodeBuf_.readableBytes();
     
     if (masked) {
@@ -278,7 +279,7 @@ namespace ws {
         break;
       default: break;
     }
-    
+    BOOST_LOG_TRIVIAL(debug) << "decode success: " << inputBuffer.size();
   }
   
   void WebSocketConnection::parse(Buffer &inputBuffer) {

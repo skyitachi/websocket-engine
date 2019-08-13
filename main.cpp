@@ -17,7 +17,7 @@ int main() {
     BOOST_LOG_TRIVIAL(info) << "websocket connection established";
     
     conn->onMessage([conn](const std::string&& message) {
-      BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message;
+      BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message.size();
       conn->sendMessage(message);
     });
     conn->onPing([](std::string&& message) {

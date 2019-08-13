@@ -27,6 +27,10 @@ namespace ws {
     size_t remaining() {
       return buf_.size() - writeIndex_;
     }
+
+    size_t available() {
+      return buf_.size() - writeIndex_ + readIndex_;
+    }
     
     size_t size() {
       return buf_.size();
@@ -61,12 +65,13 @@ namespace ws {
       return begin() + writeIndex_;
     }
     
-    size_t ensureSpace(ssize_t len) {
+    size_t ensureSpace(size_t len) {
       if (remaining() >= len) {
         return remaining();
       }
       // 此时需要移动一下内存，保证一下空间
-      if (readIndex_ + remaining() >= len) {
+      if (available() >= len) {
+        BOOST_LOG_TRIVIAL(info) << "readIndex_: " << readIndex_ << " writeIndex_: " << writeIndex_ << " buf.size: " << size() << " ensure length: " << len;
         std::copy(buf_.begin() + readIndex_, buf_.begin() + writeIndex_, buf_.begin());
         writeIndex_ -= readIndex_;
         readIndex_ = 0;
@@ -80,7 +85,7 @@ namespace ws {
     // NOTE: 自动扩容
     void write(const char *buf, size_t len) {
       ensureSpace(len);
-      std::copy(buf, buf + len, begin() + writeIndex_);
+      std::copy(buf, buf + len, writeStart());
       writeIndex_ += len;
     }
     
@@ -112,9 +117,17 @@ namespace ws {
       readIndex_ += len;
     }
     
-    void updateWriteIndex(int newWriteIndex) {
-      assert(newWriteIndex >= 0 && newWriteIndex < buf_.size());
-      writeIndex_ = newWriteIndex;
+    void updateWriteIndex(size_t delta) {
+      assert(delta <= available());
+      if (remaining() >= delta) {
+        writeIndex_ += delta;
+        return;
+      }
+      // 需要移动一下内存
+      std::copy(buf_.begin() + readIndex_, buf_.begin() + writeIndex_, buf_.begin());
+      writeIndex_ -= readIndex_;
+      readIndex_ = 0;
+      writeIndex_ += delta;
     }
     
     int getWriteIndex() {
@@ -172,17 +185,17 @@ namespace ws {
       T ret;
       switch (size) {
         case 1:
-          ret = (T)*peek();
+          ret = *(T*)peek();
           break;
         case 2:
-          ret = ntohs((T)*peek());
+          ret = ntohs(*(T*)peek());
           break;
         case 4:
-          ret = ntohl((T)*(peek()));
+          ret = ntohl(*(T*)(peek()));
           break;
         case 8:
-          T high = ntohl((T)*(peek()));
-          T low = ntohl((T)*(peek() + 4));
+          T high = ntohl(*(T*)(peek()));
+          T low = ntohl(*(T*)(peek() + 4));
           ret = high << 32 + low;
           break;
       }

@@ -19,7 +19,7 @@ namespace ws {
   static void on_uv_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
     auto conn = (TcpConnection* ) stream->data;
     assert(conn);
-    
+    BOOST_LOG_TRIVIAL(info) << "nread size: " << nread;
     if (nread < 0) {
       BOOST_LOG_TRIVIAL(info) << "close connection " << conn->id() << " passively";
       conn->handleClose();
@@ -27,7 +27,7 @@ namespace ws {
       conn->close();
     } else {
       BOOST_LOG_TRIVIAL(debug) << "conn id " << conn->id() << " received " << nread << " bytes data";
-      conn->buf.updateWriteIndex(conn->buf.getWriteIndex() + nread);
+      conn->buf.updateWriteIndex(nread);
       conn->handleMessage(nread);
     }
   }
