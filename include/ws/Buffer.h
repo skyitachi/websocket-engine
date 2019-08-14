@@ -77,7 +77,6 @@ namespace ws {
       }
       // 此时需要移动一下内存，保证一下空间
       if (available() >= len) {
-        BOOST_LOG_TRIVIAL(info) << "readIndex_: " << readIndex_ << " writeIndex_: " << writeIndex_ << " buf.size: " << size() << " ensure length: " << len;
         std::copy(buf_.begin() + readIndex_, buf_.begin() + writeIndex_, buf_.begin());
         writeIndex_ -= readIndex_;
         readIndex_ = 0;
@@ -212,7 +211,7 @@ namespace ws {
           // TODO: disable shift-count-overflow warning
           T high = (T) ntohl(*(uint32_t* )(peek()));
           T low = (T) ntohl(*(uint32_t* )(peek() + 4));
-          ret = high << 32;
+          ret = (uint64_t)high << 32;
           ret |= low;
           break;
       }

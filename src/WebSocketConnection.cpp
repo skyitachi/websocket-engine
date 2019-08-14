@@ -256,9 +256,7 @@ namespace ws {
       return;
     }
     size_t originSize = decodeBuf_.readableBytes();
-    BOOST_LOG_TRIVIAL(debug) << "payload length: " << payloadLength_ << " masked: " << masked_ << " isFin: " << isFin_ << " originSize: " << originSize;
-    BOOST_LOG_TRIVIAL(debug) << "real payload length " << inputBuffer.readableBytes();
-  
+
     decodeBuf_.write(inputBuffer, inputBuffer.readableBytes());
     if (masked_) {
       auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
