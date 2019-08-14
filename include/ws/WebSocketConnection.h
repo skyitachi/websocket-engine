@@ -18,6 +18,7 @@ namespace ws {
     
   public:
     const int kInitialDecodeBufSize = 64;
+    const int kMinPacketSize = 2; // control frame and payload size
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
     typedef std::function<void (const std::string&& )> WSMessageCallback;
@@ -96,6 +97,17 @@ namespace ws {
     Buffer outputBuf_;
     Buffer decodeBuf_;
     byte fragmentedOpCode_;
+    // 是否把整个websocket的header读完
+    bool headerRead_;
+    // NOTE: 希望至少有多少个字节
+    uint64_t wanted_ = 0;
+    // 处理tcp分片
+    bool split_;
+    bool masked_;
+    uint64_t payloadLength_;
+    byte opcode_;
+    bool isFin_;
+    char maskKey_[4];
     
     void handleConnection() {
       status_ = CONNECT;
@@ -108,6 +120,11 @@ namespace ws {
       if (closeCb_ != nullptr) {
         closeCb_(shared_from_this());
       }
+    }
+    
+    void clearDecodeStatus() {
+      wanted_ = 0;
+      headerRead_ = false;
     }
     
     void initHttpParser();

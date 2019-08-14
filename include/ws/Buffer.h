@@ -15,6 +15,8 @@ namespace ws {
   class Buffer {
   public:
     static const int kInitialSize = 1024;
+    static const int kExpandThreshold = 3;
+    static const size_t kExpandSize = 8192;
     
     Buffer() {
       buf_.resize(kInitialSize);
@@ -50,6 +52,10 @@ namespace ws {
       memcpy(dst, peek(), len);
       retrieve(len);
     }
+    void unread(size_t len) {
+      assert(readIndex_ - len >= 0 && readIndex_ - len <= writeIndex_);
+      readIndex_ -= len;
+    }
     
     std::string readString() {
       auto ret = std::string(peek(), readableBytes());
@@ -78,6 +84,14 @@ namespace ws {
         return len;
       }
       ssize_t left = len - remaining();
+      if (left > 0) {
+        lastExpand_++;
+      }
+      if (lastExpand_ > kExpandThreshold) {
+        buf_.resize(buf_.size() + left + kExpandSize);
+        lastExpand_ = 0;
+        return remaining();
+      }
       buf_.resize(buf_.size() + left);
       return len;
     }
@@ -114,6 +128,7 @@ namespace ws {
     }
     
     void retrieve(ssize_t len) {
+      assert(readIndex_ + len <= writeIndex_);
       readIndex_ += len;
     }
     
@@ -194,9 +209,10 @@ namespace ws {
           ret = ntohl(*(T*)(peek()));
           break;
         case 8:
-          T high = ntohl(*(T*)(peek()));
-          T low = ntohl(*(T*)(peek() + 4));
+          T high = (T) ntohl(*(uint32_t* )(peek()));
+          T low = (T) ntohl(*(uint32_t* )(peek() + 4));
           ret = high << 32 + low;
+          BOOST_LOG_TRIVIAL(debug) << "high: " << high << " low: " << low << " ret: " << ret;
           break;
       }
       retrieve(size);
@@ -207,6 +223,8 @@ namespace ws {
     std::vector<char> buf_;
     int readIndex_ = 0;
     int writeIndex_ = 0;
+    // NOTE: 如果连续多次扩容的话就大胆加上一些buffer
+    int lastExpand_ = 0;
   };
 }
 
