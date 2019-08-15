@@ -19,7 +19,6 @@ namespace ws {
   static void on_uv_read(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
     auto conn = (TcpConnection* ) stream->data;
     assert(conn);
-    BOOST_LOG_TRIVIAL(info) << "nread size: " << nread;
     if (nread < 0) {
       BOOST_LOG_TRIVIAL(info) << "close connection " << conn->id() << " passively";
       conn->handleClose();
@@ -43,7 +42,6 @@ namespace ws {
   
   int TcpConnection::send(const char *sendBuf, size_t len) {
     // write_req 这类的对象不需要传递data，使用handle->data即可
-    BOOST_LOG_TRIVIAL(debug) << "current state : " << state_;
     if (state_ == kWritting) {
       buf.write(sendBuf, len);
       return 0;

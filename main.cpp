@@ -16,9 +16,9 @@ int main() {
   server.onConnection([](const WebSocketConnectionPtr& conn) {
     BOOST_LOG_TRIVIAL(info) << "websocket connection established";
     
-    conn->onMessage([conn](const std::string&& message) {
+    conn->onMessage([conn](const std::string&& message, bool isBinary) {
       BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message.size();
-      conn->sendMessage(message);
+      conn->sendMessage(message, isBinary);
     });
     conn->onPing([](std::string&& message) {
       BOOST_LOG_TRIVIAL(info) << "receive ping";

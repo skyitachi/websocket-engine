@@ -52,6 +52,13 @@ namespace ws {
       memcpy(dst, peek(), len);
       retrieve(len);
     }
+    
+    // 单纯更新readIndex_
+    void read(size_t len) {
+      assert(readIndex_ + len <= writeIndex_);
+      readIndex_ += len;
+    }
+    
     void unread(size_t len) {
       assert(readIndex_ - len >= 0 && readIndex_ - len <= writeIndex_);
       readIndex_ -= len;
@@ -116,9 +123,9 @@ namespace ws {
     
     void unwrite(size_t len) {
       if (readableBytes() < len) {
-        updateWriteIndex(readIndex_);
+        updateWriteIndex(-readableBytes());
       } else {
-        updateWriteIndex(readIndex_ + readableBytes() - len);
+        updateWriteIndex(-len);
       }
     }
     
@@ -131,8 +138,8 @@ namespace ws {
       readIndex_ += len;
     }
     
-    void updateWriteIndex(size_t delta) {
-      assert(delta <= available());
+    void updateWriteIndex(ssize_t delta) {
+      assert(delta <= available() && writeIndex_ + delta >= readIndex_);
       if (remaining() >= delta) {
         writeIndex_ += delta;
         return;

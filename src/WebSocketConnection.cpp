@@ -135,11 +135,19 @@ namespace ws {
   // text, 默认不分片
   // TODO: 如何避免data的拷贝
   int WebSocketConnection::sendMessage(const std::string &data) {
+    return sendMessage(data, false);
+  }
+  
+  int WebSocketConnection::sendMessage(const std::string& data, bool isBinary) {
     uint8_t control = 0xff;
     // set FIN
     control = control & 0x8f;
-    // set opcode txt
-    control = control & 0xf1;
+    // set opcode
+    if (isBinary) {
+      control = control & 0xf2;
+    } else {
+      control = control & 0xf1;
+    }
     outputBuf_.putByte(control);
     if (data.size() < 126) {
       outputBuf_.putByte((uint8_t) data.size());
@@ -155,37 +163,53 @@ namespace ws {
     int ret = conn_->send(outputBuf_.peek(), readable);
     outputBuf_.retrieve(readable);
     return ret;
+    
   }
   
   // NOTE: 客户端的必须要mask
-  int WebSocketConnection::ping() {
+  int WebSocketConnection::ping(const std::string &message) {
+    if (message.size() >= 126) {
+      close(PROTOCOL_ERROR);
+      return 0;
+    }
     byte control = 0xff;
     control = control & (byte) 0x8f;
     control = control & (byte) 0xf9;
     outputBuf_.putByte(control);
-    outputBuf_.putByte(0);
+    outputBuf_.putByte(message.size());
+    outputBuf_.writeString(message);
     size_t readable = outputBuf_.readableBytes();
     int ret = conn_->send(outputBuf_.peek(), readable);
     outputBuf_.retrieve(readable);
     return ret;
   }
   
-  int WebSocketConnection::pong() {
+  int WebSocketConnection::pong(const std::string &message) {
+    if (message.size() >= 126) {
+      close(PROTOCOL_ERROR);
+      return 0;
+    }
     byte control = 0xff;
     control = control & (byte) 0x8f;
     control = control & (byte) 0xfa;
     outputBuf_.putByte(control);
-    outputBuf_.putByte(0);
+    outputBuf_.putByte(message.size());
+    outputBuf_.writeString(message);
     size_t readable = outputBuf_.readableBytes();
     int ret = conn_->send(outputBuf_.peek(), readable);
     outputBuf_.retrieve(readable);
     return ret;
   }
   
-  int WebSocketConnection::close() {
-    unsigned char closeFrame[2] = {0x88, 0x00};
+  int WebSocketConnection::close(StatusCode code) {
+    if (outputBuf_.readableBytes() > 0) {
+      outputBuf_.clear();
+    }
+    outputBuf_.putByte(0x88);
+    outputBuf_.putByte(0x02);
+    outputBuf_.putUInt16(code);
     status_ = CLOSING;
-    return conn_->send((char* )closeFrame, 2);
+    return conn_->send(outputBuf_.peek(), 4);
   }
   
   // NOTE: 解析websocket data frame, 一般而言都是客户端的消息
@@ -213,7 +237,8 @@ namespace ws {
       readSize += 1;
       // NOTE: 客户端的必须mask
       masked_ = (secondByte >> 7) == 1;
-      payloadLength_ = secondByte & 0x7f;
+      payloadLength_ = (uint64_t)(secondByte & (byte)0x7f);
+      wanted_ = payloadLength_;
       if (payloadLength_ == 126) {
         if (inputBuffer.readableBytes() < 2) {
           headerRead_ = false;
@@ -223,6 +248,7 @@ namespace ws {
         }
         payloadLength_ = inputBuffer.readTypedNumber<uint16_t >();
         readSize += 2;
+        BOOST_LOG_TRIVIAL(info) << "small payloadLength_: " << payloadLength_;
       } else if (payloadLength_ == 127) {
         if (inputBuffer.readableBytes() < 8) {
           headerRead_ = false;
@@ -231,8 +257,10 @@ namespace ws {
           return;
         }
         payloadLength_ = inputBuffer.readTypedNumber<uint64_t >();
-        BOOST_LOG_TRIVIAL(info) << "payloadLength_: " << payloadLength_;
+        BOOST_LOG_TRIVIAL(info) << "big payloadLength_: " << payloadLength_;
         readSize += 8;
+      } else {
+        BOOST_LOG_TRIVIAL(debug) << "unknown payloadLength_: " << payloadLength_ << " wanted_: " << wanted_;
       }
       if (masked_) {
         if (inputBuffer.readableBytes() < 4) {
@@ -242,11 +270,11 @@ namespace ws {
           return;
         } else {
           inputBuffer.read(maskKey_, 4);
-          readSize += 4;
         }
       }
     }
     headerRead_ = true;
+    BOOST_LOG_TRIVIAL(info) << "conn id: " << conn_->id() << " headers parsed, payload size:  " << payloadLength_;
     if (payloadLength_ > inputBuffer.readableBytes()) {
       // 需要确保decodeBuf_不会有数据
 //      assert(decodeBuf_.readableBytes() == 0);
@@ -257,7 +285,7 @@ namespace ws {
     }
     size_t originSize = decodeBuf_.readableBytes();
 
-    decodeBuf_.write(inputBuffer, inputBuffer.readableBytes());
+    decodeBuf_.write(inputBuffer, payloadLength_);
     if (masked_) {
       auto readEnd = decodeBuf_.peek() + decodeBuf_.readableBytes();
       char *begin = const_cast<char *>(decodeBuf_.peek() + originSize);
@@ -271,12 +299,13 @@ namespace ws {
       case 0:
         // last frame
         if (isFin_) {
-          BOOST_LOG_TRIVIAL(debug) << "receive last frame: " << inputBuffer.readableBytes();
           if (wsMessageCallback_) {
             if (fragmentedOpCode_ == 1 || fragmentedOpCode_ == 2) {
-              wsMessageCallback_(std::move(decodeBuf_.readString()));
+              wsMessageCallback_(std::move(decodeBuf_.readString()), fragmentedOpCode_ == 2);
             }
             clearDecodeStatus();
+          } else {
+            decodeBuf_.read(decodeBuf_.readableBytes());
           }
           fragmentedOpCode_ = 0;
         }
@@ -286,21 +315,22 @@ namespace ws {
         // Text
         if (isFin_) {
           if (wsMessageCallback_ != nullptr) {
-            wsMessageCallback_(std::move(decodeBuf_.readString()));
-            clearDecodeStatus();
+            wsMessageCallback_(std::move(decodeBuf_.readString()), opcode_ == 2);
+          } else {
+            decodeBuf_.read(decodeBuf_.readableBytes());
           }
         } else {
           // NOTE: 分片
           fragmentedOpCode_ = opcode_;
-          clearDecodeStatus();
         }
+        clearDecodeStatus();
         break;
       case 0x08: {
         // close
         BOOST_LOG_TRIVIAL(debug) << "receive close frame";
         if (status_ == CONNECT) {
-          close();
-          status_ = CLOSE;
+          close(NORMAL_CLOSE);
+          status_ = CLOSED;
           conn_->close();
         }
         break;
@@ -309,36 +339,40 @@ namespace ws {
         // PING
         // NOTE: must not be fragment
         assert(isFin_);
+        BOOST_LOG_TRIVIAL(debug) << "receive ping frame with length " << payloadLength_;
         // ping frame may have application data and can be injected to fragmented frame
-        
         if (pingCallback_ != nullptr) {
           pingCallback_(std::move(std::string(decodeBuf_.peek() + originSize, payloadLength_)));
-          decodeBuf_.unwrite(payloadLength_);
-          clearDecodeStatus();
         }
-        pong();
+        pong(std::string(decodeBuf_.peek() + originSize, payloadLength_));
+        if (originSize != 0) {
+          decodeBuf_.unwrite(payloadLength_);
+        }
+        clearDecodeStatus();
         break;
       case 0x0a:
+        // pong
         assert(isFin_);
         if (pongCallback_ != nullptr) {
           pongCallback_(std::move(std::string(decodeBuf_.peek() + originSize, payloadLength_)));
-          decodeBuf_.unwrite(payloadLength_);
-          clearDecodeStatus();
         }
-        ping();
+        ping(std::string(decodeBuf_.peek() + originSize, payloadLength_));
+        if (originSize != 0) {
+          decodeBuf_.unwrite(payloadLength_);
+        }
+        clearDecodeStatus();
         break;
       default: break;
     }
   }
   
-  // TODO: 先不处理极端情况，也就是每次tcp packet都很小
   void WebSocketConnection::parse(Buffer &inputBuffer) {
     if (inputBuffer.readableBytes() < wanted_) {
+      BOOST_LOG_TRIVIAL(debug) << "wanted_ size: " << wanted_;
       // NOTE: 保证header先parse完毕
       // NOTE: 暂时不消费, 等攒够了再消费
       return;
     }
-    BOOST_LOG_TRIVIAL(debug) << "in the parse: " << inputBuffer.readableBytes();
     if (status_ == INITIAL) {
       size_t nparsed = http_parser_execute(httpParserPtr.get(), &httpParserSettings_, inputBuffer.peek(), inputBuffer.readableBytes());
       inputBuffer.retrieve(nparsed);

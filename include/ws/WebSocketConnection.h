@@ -12,6 +12,12 @@
 #include <memory>
 
 namespace ws {
+  enum StatusCode {
+    NORMAL_CLOSE = 1000,
+    GOING_AWAY,
+    PROTOCOL_ERROR,
+    UNEXPECT_PAYLOAD
+  };
   class WebSocketConnection:
     util::NoCopyable,
     public std::enable_shared_from_this<WebSocketConnection> {
@@ -21,7 +27,7 @@ namespace ws {
     const int kMinPacketSize = 2; // control frame and payload size
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
-    typedef std::function<void (const std::string&& )> WSMessageCallback;
+    typedef std::function<void (const std::string&&, bool)> WSMessageCallback;
     typedef std::function<void (std::string&& )> WSPingCallback;
     typedef std::function<void (std::string&& )> WSPongCallback;
     
@@ -30,7 +36,7 @@ namespace ws {
       HANDSHAKE,
       CONNECT,
       CLOSING,
-      CLOSE
+      CLOSED
     };
     
     WebSocketConnection(const TcpConnectionPtr& ptr): conn_(ptr), status_(INITIAL), decodeBuf_(kInitialDecodeBufSize) {
@@ -76,9 +82,10 @@ namespace ws {
     
     // send websocket frame
     int sendMessage(const std::string&);
-    int ping();
-    int pong();
-    int close();
+    int sendMessage(const std::string&, bool);
+    int ping(const std::string &message);
+    int pong(const std::string &message);
+    int close(StatusCode code);
 
   private:
     const std::string computeAcceptKey(const std::string&);
@@ -98,7 +105,7 @@ namespace ws {
     Buffer decodeBuf_;
     byte fragmentedOpCode_;
     // 是否把整个websocket的header读完
-    bool headerRead_;
+    bool headerRead_ = false;
     // NOTE: 希望至少有多少个字节
     uint64_t wanted_ = 0;
     // 处理tcp分片
