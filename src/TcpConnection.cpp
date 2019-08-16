@@ -37,13 +37,14 @@ namespace ws {
   
   int TcpConnection::readStop() {
     BOOST_LOG_TRIVIAL(debug) << "conn " << id() << " stop read";
+    BOOST_LOG_TRIVIAL(debug) << "connection bufs size: " << buf.readableBytes();
     return uv_read_stop(stream());
   }
   
   int TcpConnection::send(const char *sendBuf, size_t len) {
     // write_req 这类的对象不需要传递data，使用handle->data即可
     if (state_ == kWritting) {
-      buf.write(sendBuf, len);
+      outputBuf.write(sendBuf, len);
       return 0;
     }
     assert(state_ == kConnected);
@@ -58,12 +59,6 @@ namespace ws {
       std::unique_ptr<uv_write_t> reqHolder(req);
       auto conn = (TcpConnection *)req->handle->data;
       assert(conn);
-      if (conn->state_ == kDisconnecting) {
-        conn->setState(kConnected);
-        conn->handleClose();
-        return;
-      }
-      conn->setState(kConnected);
       if (status < 0) {
         BOOST_LOG_TRIVIAL(error) << "connection write error " << uv_strerror(status);
         conn->handleClose();
@@ -71,9 +66,26 @@ namespace ws {
       }
       conn->handleWrite(conn->lastWrite());
       conn->resetLastWrite();
-      if (conn->buf.readableBytes() > 0) {
-        conn->send(conn->buf.peek(), conn->buf.readableBytes());
-        conn->buf.retrieve(conn->buf.readableBytes());
+      if (conn->isLastWrite) {
+        conn->setState(kConnected);
+        conn->handleClose();
+        conn->isLastWrite = false;
+        return;
+      }
+      if (conn->state_ == kDisconnecting) {
+        // 仍然要将outputBuf中的数据发送完
+        conn->setState(kConnected);
+        if (conn->outputBuf.readableBytes() > 0) {
+          conn->isLastWrite = true;
+        } else {
+          conn->handleClose();
+          return;
+        }
+      }
+      conn->setState(kConnected);
+      if (conn->outputBuf.readableBytes() > 0) {
+        conn->send(conn->outputBuf.peek(), conn->outputBuf.readableBytes());
+        conn->outputBuf.retrieve(conn->outputBuf.readableBytes());
       }
     });
   }

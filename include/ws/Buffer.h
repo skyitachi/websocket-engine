@@ -138,8 +138,16 @@ namespace ws {
       readIndex_ += len;
     }
     
+    // ssize_t 不能和size_t混合计算
     void updateWriteIndex(ssize_t delta) {
-      assert(delta <= available() && writeIndex_ + delta >= readIndex_);
+      if (delta < 0) {
+        writeIndex_ -= (size_t )(-delta);
+        if (writeIndex_ < readIndex_) {
+          writeIndex_ = readIndex_;
+        }
+        return;
+      }
+      assert(delta <= available() && (writeIndex_ + delta) >= readIndex_);
       if (remaining() >= delta) {
         writeIndex_ += delta;
         return;

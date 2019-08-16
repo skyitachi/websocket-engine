@@ -52,7 +52,6 @@ namespace ws {
   }
   
   void WebSocketConnection::onHeaderComplete() {
-    // TODO: handshake logic
     if (httpParserPtr->method != HTTP_GET) {
       BOOST_LOG_TRIVIAL(debug) << "conn id " << conn_->id() << " doesn't receive get request";
       conn_->send(BAD_REQUEST);
@@ -216,6 +215,7 @@ namespace ws {
   // NOTE: 先使用stack variable
   // NOTE: 可以处理tcp分片
   // NOTE: 如果一次parse不了就先unread
+  // NOTE: inputBuffer有可能有连续多帧的websocket frame
   void WebSocketConnection::decode(Buffer &inputBuffer) {
     // NOTE: 有状态的
     if (!headerRead_) {
@@ -259,8 +259,6 @@ namespace ws {
         payloadLength_ = inputBuffer.readTypedNumber<uint64_t >();
         BOOST_LOG_TRIVIAL(info) << "big payloadLength_: " << payloadLength_;
         readSize += 8;
-      } else {
-        BOOST_LOG_TRIVIAL(debug) << "unknown payloadLength_: " << payloadLength_ << " wanted_: " << wanted_;
       }
       if (masked_) {
         if (inputBuffer.readableBytes() < 4) {
@@ -303,11 +301,11 @@ namespace ws {
             if (fragmentedOpCode_ == 1 || fragmentedOpCode_ == 2) {
               wsMessageCallback_(std::move(decodeBuf_.readString()), fragmentedOpCode_ == 2);
             }
-            clearDecodeStatus();
           } else {
             decodeBuf_.read(decodeBuf_.readableBytes());
           }
           fragmentedOpCode_ = 0;
+          clearDecodeStatus();
         }
         break;
       case 1:
@@ -353,16 +351,20 @@ namespace ws {
       case 0x0a:
         // pong
         assert(isFin_);
+        BOOST_LOG_TRIVIAL(info) << "receive pong frame with length " << payloadLength_;
         if (pongCallback_ != nullptr) {
           pongCallback_(std::move(std::string(decodeBuf_.peek() + originSize, payloadLength_)));
         }
-        ping(std::string(decodeBuf_.peek() + originSize, payloadLength_));
+//        ping(std::string(decodeBuf_.peek() + originSize, payloadLength_));
         if (originSize != 0) {
           decodeBuf_.unwrite(payloadLength_);
         }
         clearDecodeStatus();
         break;
       default: break;
+    }
+    if (inputBuffer.readableBytes() > 0) {
+      decode(inputBuffer);
     }
   }
   

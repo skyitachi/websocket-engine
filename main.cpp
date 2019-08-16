@@ -21,11 +21,11 @@ int main() {
       conn->sendMessage(message, isBinary);
     });
     conn->onPing([](std::string&& message) {
-      BOOST_LOG_TRIVIAL(info) << "receive ping";
+//      BOOST_LOG_TRIVIAL(info) << "receive ping";
     });
     
     conn->onPong([](std::string&& message) {
-      BOOST_LOG_TRIVIAL(info) << "receive pong";
+//      BOOST_LOG_TRIVIAL(info) << "receive pong";
     });
   });
   

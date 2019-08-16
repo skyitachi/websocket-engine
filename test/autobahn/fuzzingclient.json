@@ -4,7 +4,7 @@
    "servers": [
         {"agent": "ReadAllWriteMessage", "url": "ws://localhost:3000", "options": {"version": 18}}
     ],
-   "cases": ["1.2.*"],
+   "cases": ["1.*"],
    "exclude-cases": [],
    "exclude-agent-cases": {}
 }

@@ -132,6 +132,8 @@ class TcpConnection:
     }
     
     Buffer buf;
+    Buffer outputBuf;
+    bool isLastWrite = false;
  
     void setState(StateE state) {
       state_ = state;

@@ -8,7 +8,6 @@
 namespace ws {
   
   void WebSocketServer::handleMessage(const TcpConnectionPtr& ptr, Buffer& buf) {
-    BOOST_LOG_TRIVIAL(debug) << "receive client message";
     int id = ptr->id();
     if (wsConns_.find(id) == wsConns_.end()) {
       wsConns_[id] = std::make_shared<WebSocketConnection>(ptr);
