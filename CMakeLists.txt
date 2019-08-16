@@ -31,6 +31,6 @@ IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     target_link_libraries(test uv boost_log-mt)
     target_link_libraries(test_buffer boost_log-mt)
 ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    target_link_libraries(test uv boost_log pthread http_parser)
+    target_link_libraries(test uv boost_log pthread)
 ENDIF ()
 

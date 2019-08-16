@@ -8,8 +8,10 @@
 #include <uv.h>
 #include <string>
 #include <thread>
-#include "util.h"
 #include <functional>
+#include <mutex>
+#include <condition_variable>
+#include "util.h"
 
 namespace ws {
   class EventLoopThread: ws::util::NoCopyable {
