@@ -12,6 +12,7 @@
 #include <string>
 #include "util.h"
 #include "Buffer.h"
+#include "String.h"
 
 namespace ws {
 class TcpConnection:
@@ -139,14 +140,24 @@ class TcpConnection:
       state_ = state;
     }
     
-    // TODO: 要支持scatter io
     int send(const char *, size_t);
     
+    int send(Buffer& buf) {
+      size_t readable = buf.readableBytes();
+      int ret = send(buf.peek(), buf.readableBytes());
+      buf.retrieve(readable);
+      return ret;
+    }
+    
+//    int send(std::vector<Buffer&>);
+    
+    // Note: 非常丑陋的api
+    int send(Buffer&, String&&);
     int send(const std::string& data) {
       return send(data.c_str(), (size_t)data.size());
     }
     
-    bool connected() {
+    bool connected() const {
       return state_ == kConnected;
     }
     
@@ -200,6 +211,7 @@ class TcpConnection:
       return std::string(decoded) + ":" + std::to_string(port);
     }
     
+    int writeToUv(const uv_buf_t*, unsigned int);
   };
   
   typedef std::shared_ptr<TcpConnection> TcpConnectionPtr;

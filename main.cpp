@@ -16,15 +16,16 @@ int main() {
   server.onConnection([](const WebSocketConnectionPtr& conn) {
     BOOST_LOG_TRIVIAL(info) << "websocket connection established";
     
-    conn->onMessage([conn](const std::string&& message, bool isBinary) {
-      BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message.size();
-      conn->sendMessage(message, isBinary);
+    conn->onMessage([conn](String&& message, bool isBinary) {
+      BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message.size() << " content is " << message.c_str();
+      conn->sendMessage(std::move(message), isBinary);
     });
-    conn->onPing([](std::string&& message) {
+    
+    conn->onPing([](String&& message) {
 //      BOOST_LOG_TRIVIAL(info) << "receive ping";
     });
     
-    conn->onPong([](std::string&& message) {
+    conn->onPong([](String&& message) {
 //      BOOST_LOG_TRIVIAL(info) << "receive pong";
     });
   });

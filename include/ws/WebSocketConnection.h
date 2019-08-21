@@ -7,6 +7,7 @@
 
 #include <ws/util.h>
 #include <ws/TcpConnection.h>
+#include <ws/String.h>
 #include <unordered_map>
 #include <http_parser/http_parser.h>
 #include <memory>
@@ -23,13 +24,13 @@ namespace ws {
     public std::enable_shared_from_this<WebSocketConnection> {
     
   public:
-    const int kInitialDecodeBufSize = 64;
-    const int kMinPacketSize = 2; // control frame and payload size
+    const size_t kInitialDecodeBufSize = 64;
+    const size_t kMinPacketSize = 2; // control frame and payload size
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
-    typedef std::function<void (const std::string&&, bool)> WSMessageCallback;
-    typedef std::function<void (std::string&& )> WSPingCallback;
-    typedef std::function<void (std::string&& )> WSPongCallback;
+    typedef std::function<void (String&&, bool)> WSMessageCallback;
+    typedef std::function<void (String&&)> WSPingCallback;
+    typedef std::function<void (String&& )> WSPongCallback;
     
     enum Status {
       INITIAL,
@@ -46,7 +47,8 @@ namespace ws {
     }
     
     void parse(Buffer &inputBuffer);
-    
+   
+    // TODO: 有必要使用右值引用的参数吗
     void setHeaderValue(std::string&& value) {
       assert(!lastHeaderField_.empty());
       headers_.insert(std::make_pair(lastHeaderField_, std::move(value)));
@@ -81,10 +83,10 @@ namespace ws {
     }
     
     // send websocket frame
-    int sendMessage(const std::string&);
-    int sendMessage(const std::string&, bool);
-    int ping(const std::string &message);
-    int pong(const std::string &message);
+    int sendMessage(String &&, bool);
+    int sendMessage(const String&, bool);
+    int ping(const String& message);
+    int pong(const String& message);
     int close(StatusCode code);
 
   private:
@@ -116,6 +118,7 @@ namespace ws {
     bool isFin_;
     char maskKey_[4];
     
+    void writeHeader(uint64_t payLoadLength, byte opcode);
     void handleConnection() {
       status_ = CONNECT;
       if (connCb_ != nullptr) {

@@ -8,6 +8,8 @@
 #include <vector>
 #include <boost/log/trivial.hpp>
 #include <arpa/inet.h>
+#include "String.h"
+
 namespace ws {
   
   typedef uint8_t byte;
@@ -26,23 +28,23 @@ namespace ws {
       buf_.resize(len);
     }
     
-    size_t remaining() {
+    size_t remaining() const {
       return buf_.size() - writeIndex_;
     }
 
-    size_t available() {
+    size_t available() const {
       return buf_.size() - writeIndex_ + readIndex_;
     }
     
-    size_t size() {
+    size_t size() const {
       return buf_.size();
     }
     
-    size_t readableBytes() {
+    size_t readableBytes() const {
       return size_t(writeIndex_ - readIndex_);
     }
     
-    char *begin() {
+    const char *begin() const {
       return &*buf_.begin();
     }
     
@@ -64,18 +66,18 @@ namespace ws {
       readIndex_ -= len;
     }
     
-    std::string readString() {
-      auto ret = std::string(peek(), readableBytes());
+    String readString() {
+      auto ret = String(peek(), readableBytes());
       retrieve(readableBytes());
       return ret;
     }
     
-    const char *peek() {
+    const char *peek() const {
       return begin() + readIndex_;
     }
     
-    char *writeStart() {
-      return begin() + writeIndex_;
+    char *writeStart(){
+      return const_cast<char *>(begin()) + writeIndex_;
     }
     
     size_t ensureSpace(size_t len) {
@@ -130,6 +132,10 @@ namespace ws {
     }
     
     void writeString(const std::string& input) {
+      write(input.c_str(), input.size());
+    }
+    
+    void writeString(const String& input) {
       write(input.c_str(), input.size());
     }
     
@@ -205,6 +211,10 @@ namespace ws {
       auto low = (uint32_t) (bigInt & 0xfffffffff);
       putUInt32(high);
       putUInt32(low);
+    }
+    
+    bool empty() const {
+      return readableBytes() == 0;
     }
     
     template <typename T>

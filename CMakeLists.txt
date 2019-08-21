@@ -21,16 +21,13 @@ aux_source_directory(./src SOURCE)
 # must before add_executable
 link_directories(/usr/local/lib)
 
-add_executable(test main.cpp ${SOURCE})
+add_executable(main main.cpp ${SOURCE})
 
-# tests
-add_executable(test_buffer test/buffer_test.cpp src/Buffer.cpp)
-target_link_libraries(test_buffer gtest gmock)
 
 IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    target_link_libraries(test uv boost_log-mt)
-    target_link_libraries(test_buffer boost_log-mt)
+    target_link_libraries(main uv boost_log-mt)
 ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    target_link_libraries(test uv boost_log pthread)
+    target_link_libraries(main uv boost_log pthread)
 ENDIF ()
 
+add_subdirectory(test)
