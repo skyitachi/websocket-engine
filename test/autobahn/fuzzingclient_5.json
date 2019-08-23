@@ -1,0 +1,10 @@
+{
+   "options": {"failByDrop": false},
+   "outdir": "./reports/clients",
+   "servers": [
+        {"agent": "ReadAllWriteMessage", "url": "ws://localhost:3000", "options": {"version": 18}}
+    ],
+   "cases": ["5.*"],
+   "exclude-cases": [],
+   "exclude-agent-cases": {}
+}
