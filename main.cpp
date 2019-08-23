@@ -18,6 +18,7 @@ int main() {
     
     conn->onMessage([conn](String&& message, bool isBinary) {
       BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message.size() << " content is " << message.c_str();
+      // 由于sendMessage根本不会复制message, 虽然使用了移动的版本，也不会触发移动构造函数
       conn->sendMessage(std::move(message), isBinary);
     });
     

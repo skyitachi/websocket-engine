@@ -218,6 +218,10 @@ namespace ws {
     outputBuf_.putByte(0x02);
     outputBuf_.putUInt16(code);
     status_ = CLOSING;
+    if (code != NORMAL_CLOSE) {
+      // 首先停止接收数据
+      conn_->stopRead();
+    }
     return conn_->send(outputBuf_.peek(), 4);
   }
   
@@ -231,6 +235,11 @@ namespace ws {
     if (!headerRead_) {
       size_t readSize = 0;
       byte firstByte = inputBuffer.readTypedNumber<byte>();
+      // RSV must be zero
+      if (firstByte & static_cast<byte>(0x70)) {
+        close(PROTOCOL_ERROR);
+        return;
+      }
       readSize += 1;
       isFin_ = false;
       if (firstByte >> 7) {
@@ -312,7 +321,7 @@ namespace ws {
               wsMessageCallback_(decodeBuf_.readString(), fragmentedOpCode_ == 2);
             }
           } else {
-            decodeBuf_.read(decodeBuf_.readableBytes());
+            decodeBuf_.retrieve(decodeBuf_.readableBytes());
           }
           fragmentedOpCode_ = 0;
           clearDecodeStatus();
@@ -325,7 +334,7 @@ namespace ws {
           if (wsMessageCallback_ != nullptr) {
             wsMessageCallback_(decodeBuf_.readString(), opcode_ == 2);
           } else {
-            decodeBuf_.read(decodeBuf_.readableBytes());
+            decodeBuf_.retrieve(decodeBuf_.readableBytes());
           }
         } else {
           // NOTE: 分片
@@ -346,7 +355,10 @@ namespace ws {
       case 0x09:
         // PING
         // NOTE: must not be fragment
-        assert(isFin_);
+        if (!isFin_) {
+          close(PROTOCOL_ERROR);
+          return;
+        }
         BOOST_LOG_TRIVIAL(debug) << "receive ping frame with length " << payloadLength_;
         // ping frame may have application data and can be injected to fragmented frame
         if (pingCallback_ != nullptr) {
@@ -360,7 +372,10 @@ namespace ws {
         break;
       case 0x0a:
         // pong
-        assert(isFin_);
+        if (!isFin_) {
+          close(PROTOCOL_ERROR);
+          return;
+        }
         BOOST_LOG_TRIVIAL(info) << "receive pong frame with length " << payloadLength_;
         if (pongCallback_ != nullptr) {
           pongCallback_(String(decodeBuf_.peek() + originSize, payloadLength_));
@@ -371,7 +386,9 @@ namespace ws {
         }
         clearDecodeStatus();
         break;
-      default: break;
+      default:
+        close(PROTOCOL_ERROR);
+        return;
     }
     if (inputBuffer.readableBytes() > 0) {
       decode(inputBuffer);

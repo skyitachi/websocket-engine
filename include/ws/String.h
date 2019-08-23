@@ -7,19 +7,15 @@
 #include <cstring>
 #include <cstdio>
 #include <iostream>
-#include <boost/log/trivial.hpp>
 
 namespace ws {
   class String {
   public:
     String(): data_(new char[1]), size_(0) {
-//      BOOST_LOG_TRIVIAL(debug) << "String() default constructor";
-      std::cout << "String() default constructor" << std::endl;
       *data_ = '\0';
     }
     // 允许const char* 到 String的转化就不需要使用explicit了
     String(const char* src): data_(new char[strlen(src) + 1]), size_(strlen(src)) {
-//      BOOST_LOG_TRIVIAL(debug) << "String(const char*src ) constructor";
       ::strcpy(data_, src);
       data_[size_] = '\0';
     }
@@ -30,7 +26,6 @@ namespace ws {
     }
     
     String(const String& lhs): data_(new char[lhs.size() + 1]), size_(lhs.size()) {
-      BOOST_LOG_TRIVIAL(debug) << "String(const String& lhs ) constructor";
       ::strcpy(data_, lhs.data());
       data_[size_] = 0;
     }
@@ -45,9 +40,10 @@ namespace ws {
       data_[size_] = 0;
       return *this;
     }
-    // move
+    // move and noexcept
     String(String &&rhs) noexcept: data_(rhs.data_), size_(rhs.size_) {
       rhs.data_ = nullptr;
+      rhs.size_ = 0;
     }
     
     String& operator=(String &&rhs) noexcept {
@@ -64,6 +60,10 @@ namespace ws {
       return data_;
     }
     
+    bool empty() const {
+      return data_ == nullptr || size_ == 0;
+    }
+    
     size_t size() const {
       return size_;
     }
@@ -73,18 +73,31 @@ namespace ws {
       std::swap(size_, rhs.size_);
     }
     
+    
     ~String() {
-      printf("data_ %p destructor\n", data_);
-//      BOOST_LOG_TRIVIAL(debug) << "data_: " << sprintf("", "%x", data_) << " destructor";
-      // NOTE: it's safe to delete a nullptr
-      if (data_ != nullptr) {
-        delete[] data_;
-      }
+      delete[] data_;
     }
+    
     
   private:
     char *data_;
     size_t size_;
   };
+  
+  static std::ostream& operator<< (std::ostream& out, const String& s) {
+    if (s.empty()) {
+      out << "";
+    } else {
+      out << s.c_str();
+    }
+    return out;
+  }
+  
+  // TODO:
+//  static String& operator+(const String& lhs, const String&rhs) {
+//    String s1;
+//    return s1;
+//  }
+  
 }
 #endif //WEBSOCKET_ENGINE_STRING_H

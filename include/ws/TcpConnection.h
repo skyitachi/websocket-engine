@@ -101,8 +101,8 @@ class TcpConnection:
     
     // 主动关闭链接
     void close();
-    int readStart();
-    int readStop();
+    int startRead();
+    int stopRead();
     
     void handleMessage(ssize_t len) {
       bytesRead_ += len;
@@ -153,9 +153,13 @@ class TcpConnection:
     
     // Note: 非常丑陋的api
     int send(Buffer&, String&&);
+//    int send(const std::string& data) {
+//      return send(data.c_str(), (size_t)data.size());
+//    }
     int send(const std::string& data) {
-      return send(data.c_str(), (size_t)data.size());
+      return send(data.c_str(), static_cast<size_t>(data.size()));
     }
+//    int send(String&&);
     
     bool connected() const {
       return state_ == kConnected;

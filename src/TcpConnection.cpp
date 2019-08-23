@@ -31,11 +31,11 @@ namespace ws {
     }
   }
   
-  int TcpConnection::readStart() {
+  int TcpConnection::startRead() {
     return uv_read_start(stream(), on_uv_alloc, on_uv_read);
   }
   
-  int TcpConnection::readStop() {
+  int TcpConnection::stopRead() {
     BOOST_LOG_TRIVIAL(debug) << "conn " << id() << " stop read";
     BOOST_LOG_TRIVIAL(debug) << "connection bufs size: " << buf.readableBytes();
     return uv_read_stop(stream());
@@ -117,7 +117,7 @@ namespace ws {
     }
     assert(state_ == kConnected || state_ == kConnecting);
     setState(kDisconnected);
-    readStop();
+    stopRead();
     connectionCallback_(shared_from_this());
     closeCallback_(shared_from_this());
   }
