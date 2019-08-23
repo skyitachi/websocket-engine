@@ -14,6 +14,7 @@ namespace ws {
       if (connCb_ != nullptr) {
         wsConns_[id]->onConnection(connCb_);
       }
+      // FIXME
       if (closeCb_ != nullptr) {
         wsConns_[id]->onClose(closeCb_);
       }

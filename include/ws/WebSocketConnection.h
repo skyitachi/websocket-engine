@@ -61,25 +61,36 @@ namespace ws {
     
     void onHeaderComplete();
     
-    // TODO: callback 是如何使用move的
-    void onConnection(WSConnectionCallback& cb) {
-      connCb_ = std::move(cb);
+    void onConnection(const WSConnectionCallback& cb) {
+      // NOTE: 这里不能move
+      connCb_ = cb;
     }
     
     void onClose(WSConnectionCallback& cb) {
+      // NOTE: 这里不能move
       closeCb_ = std::move(cb);
     }
     
-    void onMessage(WSMessageCallback&& cb) {
-      wsMessageCallback_ = std::move(cb);
+    void onMessage(const WSMessageCallback& cb) {
+      // 不能用move
+      wsMessageCallback_ = cb;
     }
     
+    // 如果要使用T&&版本的话至少要提供一个const T&的重载
     void onPing(WSPingCallback&& cb) {
       pingCallback_ = std::move(cb);
+    }
+
+    void onPing(const WSPingCallback& cb) {
+      pingCallback_ = cb;
     }
     
     void onPong(WSPongCallback&& cb) {
       pongCallback_ = std::move(cb);
+    }
+
+    void onPong(const WSPongCallback&& cb) {
+      pongCallback_ = cb;
     }
     
     // send websocket frame
@@ -105,7 +116,7 @@ namespace ws {
    
     Buffer outputBuf_;
     Buffer decodeBuf_;
-    byte fragmentedOpCode_;
+    byte fragmentedOpCode_ = 0;
     // 是否把整个websocket的header读完
     bool headerRead_ = false;
     // NOTE: 希望至少有多少个字节

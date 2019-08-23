@@ -97,7 +97,6 @@ namespace ws {
       conn_->close();
       return;
     }
-    BOOST_LOG_TRIVIAL(debug) << " maybe websocket request come";
     const std::string acceptKey = computeAcceptKey(headers_["Sec-WebSocket-Key"]);
     BOOST_LOG_TRIVIAL(debug) << "base64 string: " << acceptKey;
     conn_->send(UPGRADE_RESPONSE + "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n");
@@ -293,9 +292,8 @@ namespace ws {
     headerRead_ = true;
     BOOST_LOG_TRIVIAL(info) << "conn id: " << conn_->id() << " headers parsed, payload size:  " << payloadLength_;
     if (payloadLength_ > inputBuffer.readableBytes()) {
-      // 需要确保decodeBuf_不会有数据
-//      assert(decodeBuf_.readableBytes() == 0);
       // 处理tcp分片
+      BOOST_LOG_TRIVIAL(debug) << "conn id: " << conn_->id() << " found tcp splits";
       split_ = true;
       wanted_ = payloadLength_;
       return;
@@ -315,21 +313,36 @@ namespace ws {
     switch (opcode_) {
       case 0:
         // last frame
+        if (fragmentedOpCode_ == 0) {
+          // 没收到fragment, 但是对端又以fragment的形式发送, 这是认为是非法的.
+          close(PROTOCOL_ERROR);
+          return;
+        }
         if (isFin_) {
-          if (wsMessageCallback_) {
-            if (fragmentedOpCode_ == 1 || fragmentedOpCode_ == 2) {
-              wsMessageCallback_(decodeBuf_.readString(), fragmentedOpCode_ == 2);
+          if (wsMessageCallback_ != nullptr) {
+            if (fragmentedOpCode_ == 0x01 || fragmentedOpCode_ == 0x02) {
+              wsMessageCallback_(decodeBuf_.readString(), fragmentedOpCode_ == 0x02);
             }
           } else {
+            BOOST_LOG_TRIVIAL(debug) << "doesn't has messagecallback";
             decodeBuf_.retrieve(decodeBuf_.readableBytes());
           }
           fragmentedOpCode_ = 0;
           clearDecodeStatus();
+        } else {
+          BOOST_LOG_TRIVIAL(debug) << "decode receive fragment";
+          // NOTE: 开始新帧的解析
+          clearDecodeStatus();
+          // fragment
         }
         break;
       case 1:
       case 2:
         // Text
+        if (fragmentedOpCode_ != 0) {
+          close(PROTOCOL_ERROR);
+          return;
+        }
         if (isFin_) {
           if (wsMessageCallback_ != nullptr) {
             wsMessageCallback_(decodeBuf_.readString(), opcode_ == 2);
@@ -339,6 +352,7 @@ namespace ws {
         } else {
           // NOTE: 分片
           fragmentedOpCode_ = opcode_;
+          BOOST_LOG_TRIVIAL(debug) << "text message fragment found, opcode_: " << opcode_ << " fragmentedOpCode_: " << fragmentedOpCode_;
         }
         clearDecodeStatus();
         break;
