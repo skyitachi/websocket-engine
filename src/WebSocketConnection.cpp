@@ -151,7 +151,6 @@ namespace ws {
   // scatter io, header和data的分离
   int WebSocketConnection::sendMessage(ws::String &&data, bool isBinary = false) {
     assert(outputBuf_.empty());
-    BOOST_LOG_TRIVIAL(debug) << "in the move sendMessage: " << data.c_str();
     // text
     if (isBinary) {
       writeHeader(data.size(), 2);
@@ -168,7 +167,6 @@ namespace ws {
       writeHeader(data.size(), 1);
     }
     outputBuf_.write(data.c_str(), data.size());
-    size_t readable = outputBuf_.readableBytes();
     return conn_->send(outputBuf_);
     
   }
@@ -192,6 +190,7 @@ namespace ws {
     return ret;
   }
   
+  // NOTE: no need to use rvalue reference
   int WebSocketConnection::pong(const String &message) {
     if (message.size() >= 126) {
       close(PROTOCOL_ERROR);
@@ -394,7 +393,6 @@ namespace ws {
         if (pongCallback_ != nullptr) {
           pongCallback_(String(decodeBuf_.peek() + originSize, payloadLength_));
         }
-//        ping(std::string(decodeBuf_.peek() + originSize, payloadLength_));
         if (originSize != 0) {
           decodeBuf_.unwrite(payloadLength_);
         }

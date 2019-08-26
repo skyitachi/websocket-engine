@@ -53,19 +53,33 @@ class TcpConnection:
     TcpConnection(uv_loop_t* loop, TcpUniquePtr&& ptr):
       TcpConnection(loop, std::move(ptr), 0) {}
   
-    void setCloseCallback(CloseCallback cb) {
+    // NOTE: TcpConnection的callback可以有右值版本
+    void setCloseCallback(const CloseCallback& cb) {
+      closeCallback_ = cb;
+    }
+    
+    void setCloseCallback(CloseCallback&& cb) {
       closeCallback_ = std::move(cb);
     }
     
-    void setConnectionCallback(ConnectionCallback cb) {
-      connectionCallback_ = std::move(cb);
+    // NOTE: 由于connection callback是由TcpServer绑定的，不需要有右值版本
+    void setConnectionCallback(const ConnectionCallback& cb) {
+      connectionCallback_ = cb;
     }
     
-    void setMessageCallback(MessageCallback cb) {
+    void setMessageCallback(const MessageCallback& cb) {
+      messageCallback_ = cb;
+    }
+    
+    void setMessageCallback(MessageCallback&& cb) {
       messageCallback_ = std::move(cb);
     }
     
-    void setWriteCompleteCallback(WriteCompleteCallback cb) {
+    void setWriteCompleteCallback(const WriteCompleteCallback& cb) {
+      writeCompleteCallback_ = cb;
+    }
+    
+    void setWriteCompleteCallback(WriteCompleteCallback&& cb) {
       writeCompleteCallback_ = std::move(cb);
     }
     

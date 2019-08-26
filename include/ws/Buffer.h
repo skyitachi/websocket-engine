@@ -233,7 +233,6 @@ namespace ws {
           ret = ntohl(*(T*)(peek()));
           break;
         case 8:
-          // TODO: disable shift-count-overflow warning
           T high = (T) ntohl(*(uint32_t* )(peek()));
           T low = (T) ntohl(*(uint32_t* )(peek() + 4));
           ret = (uint64_t)high << 32;

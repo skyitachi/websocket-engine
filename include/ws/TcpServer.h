@@ -25,14 +25,22 @@ namespace ws {
       pool_.setThreadNums(0);
     }
     
-    int listen(const std::string host, int port);
+    int listen(const std::string, int);
     
-    void setMessageCallback(MessageCallback cb) {
+    void setMessageCallback(const MessageCallback& cb) {
       messageCallback = cb;
     }
     
-    void setConnectionCallback(ConnectionCallback cb) {
+    void setMessageCallback(MessageCallback&& cb) {
+      messageCallback = std::move(cb);
+    }
+    
+    void setConnectionCallback(const ConnectionCallback& cb) {
       connectionCallback = cb;
+    }
+    
+    void setConnectionCallback(ConnectionCallback&& cb) {
+      connectionCallback = std::move(cb);
     }
     
     int getNextId() {

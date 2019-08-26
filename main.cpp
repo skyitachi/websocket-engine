@@ -16,6 +16,7 @@ int main() {
   server.onConnection([](const WebSocketConnectionPtr& conn) {
     BOOST_LOG_TRIVIAL(info) << "websocket connection established";
     
+    // 这里右值引用的参数意思是message是可以安全move的
     conn->onMessage([conn](String&& message, bool isBinary) {
       BOOST_LOG_TRIVIAL(info) << "receive message from client: " << message.size() << " content is " << message.c_str();
       // 由于sendMessage根本不会复制message, 虽然使用了移动的版本，也不会触发移动构造函数
@@ -28,6 +29,10 @@ int main() {
     
     conn->onPong([](String&& message) {
 //      BOOST_LOG_TRIVIAL(info) << "receive pong";
+    });
+    
+    conn->onClose([]() {
+      BOOST_LOG_TRIVIAL(info) << "connection closed";
     });
   });
   

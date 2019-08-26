@@ -33,8 +33,8 @@ namespace ws {
       connCb_ = std::move(cb);
     }
     
-    void onClose(WSConnectionCallback&& cb) {
-      closeCb_ = std::move(cb);
+    void onConnection(const WSConnectionCallback& cb) {
+      connCb_ = cb;
     }
     
   private:
@@ -42,7 +42,6 @@ namespace ws {
     void handleConnection(const TcpConnectionPtr&);
     std::map<int, WebSocketConnectionPtr> wsConns_;
     WSConnectionCallback connCb_;
-    WSConnectionCallback closeCb_;
   };
   
 }

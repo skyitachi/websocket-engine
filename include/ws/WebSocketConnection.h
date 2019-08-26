@@ -28,6 +28,7 @@ namespace ws {
     const size_t kMinPacketSize = 2; // control frame and payload size
     typedef std::shared_ptr<WebSocketConnection> WebSocketConnectionPtr;
     typedef std::function<void (const WebSocketConnectionPtr&)> WSConnectionCallback;
+    typedef std::function<void()> WSCloseCallback;
     typedef std::function<void (String&&, bool)> WSMessageCallback;
     typedef std::function<void (String&&)> WSPingCallback;
     typedef std::function<void (String&& )> WSPongCallback;
@@ -48,7 +49,7 @@ namespace ws {
     
     void parse(Buffer &inputBuffer);
    
-    // TODO: 有必要使用右值引用的参数吗
+    // 这里是可以使用右值引用的参数的
     void setHeaderValue(std::string&& value) {
       assert(!lastHeaderField_.empty());
       headers_.insert(std::make_pair(lastHeaderField_, std::move(value)));
@@ -60,20 +61,32 @@ namespace ws {
     }
     
     void onHeaderComplete();
-    
+   
+    // NOTE: 因为这里的callback是有server那里传入的，要负责多个连接的使用
+    // 所以不能使用move
     void onConnection(const WSConnectionCallback& cb) {
       // NOTE: 这里不能move
       connCb_ = cb;
     }
     
-    void onClose(WSConnectionCallback& cb) {
+    void onClose(const WSCloseCallback& cb) {
       // NOTE: 这里不能move
+      closeCb_ = cb;
+      conn_->setCloseCallback(std::bind(&WebSocketConnection::handleClose, this));
+    }
+    
+    void onClose(WSCloseCallback&& cb) {
       closeCb_ = std::move(cb);
+      conn_->setCloseCallback(std::bind(&WebSocketConnection::handleClose, this));
     }
     
     void onMessage(const WSMessageCallback& cb) {
       // 不能用move
       wsMessageCallback_ = cb;
+    }
+    
+    void onMessage(WSMessageCallback&& cb) {
+      wsMessageCallback_ = std::move(cb);
     }
     
     // 如果要使用T&&版本的话至少要提供一个const T&的重载
@@ -109,7 +122,7 @@ namespace ws {
     std::unordered_map<std::string, std::string> headers_;
     std::string lastHeaderField_;
     WSConnectionCallback connCb_;
-    WSConnectionCallback closeCb_;
+    WSCloseCallback closeCb_;
     WSMessageCallback wsMessageCallback_;
     WSPingCallback pingCallback_;
     WSPongCallback pongCallback_;
@@ -138,8 +151,9 @@ namespace ws {
     }
     
     void handleClose() {
+      status_ = CLOSED;
       if (closeCb_ != nullptr) {
-        closeCb_(shared_from_this());
+        closeCb_();
       }
     }
     
