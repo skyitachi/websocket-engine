@@ -37,6 +37,10 @@ class TcpConnection:
       uv_tcp_init(loop_, tcp_.get());
       setState(kConnecting);
     }
+
+    TcpConnection(uv_loop_t* loop, int fd, int id): TcpConnection(loop, id) {
+      uv_tcp_open(tcp_.get(), fd);
+    }
     
     explicit TcpConnection(uv_loop_t* loop): TcpConnection(loop, 0) {}
     

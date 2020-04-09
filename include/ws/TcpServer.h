@@ -21,6 +21,8 @@ namespace ws {
       tcp_->data = this;
       uv_tcp_init(loop_, tcp_.get());
       id_ = 0;
+      listened_ = false;
+      fetched_ = false;
       // 默认使用baseLoop
       pool_.setThreadNums(0);
     }
@@ -49,6 +51,22 @@ namespace ws {
     
     uv_stream_t* stream() {
       return (uv_stream_t* )tcp_.get();
+    }
+
+    int get_native_fd() {
+      assert(listened_);
+      if (fetched_) {
+        return fd_;
+      }
+      uv_fileno((uv_handle_t *) tcp_.get(), static_cast<uv_os_fd_t* >(&fd_));
+      fetched_ = true;
+      return fd_;
+    }
+
+    int native_accept() {
+      sockaddr_in peer_addr;
+      socklen_t peer_addr_size;
+      return accept(get_native_fd(), (sockaddr*)&peer_addr, &peer_addr_size);
     }
     
     uv_loop_t* getWorkerLoop() {
@@ -90,6 +108,10 @@ namespace ws {
     uv_loop_t* loop_;
     std::unique_ptr<uv_tcp_t> tcp_;
     EventLoopThreadPool pool_;
+    bool listened_;
+    int fd_;
+    bool fetched_;
+
   };
   
 }

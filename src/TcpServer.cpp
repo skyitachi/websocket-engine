@@ -28,29 +28,24 @@ namespace ws {
       // TODO: 错误处理
       return;
     }
-    uv_loop_t* mainLoop = tcpServer->getMainLoop();
-    TcpConnectionPtr conn = std::make_shared<TcpConnection>(mainLoop, tcpServer->getNextId());
-    tcpServer->addTcpConnection(conn);
-    
+    TcpConnectionPtr conn;
     // NOTE: uv_accept放到一个线程里做
-    if (!uv_accept(server, conn->stream())) {
-      conn->setMessageCallback(tcpServer->messageCallback);
-      conn->setConnectionCallback(tcpServer->connectionCallback);
-      conn->setCloseCallback(std::bind(closeConnection, tcpServer, _1));
-      
-      if (!tcpServer->isSingleThread()) {
-        uv_loop_t* workerLoop = tcpServer->getWorkerLoop();
-        conn->attachToLoop(workerLoop);
-        uv_async_t *task = (uv_async_t *)malloc(sizeof(uv_async_t));
-        task->data = &conn;
-        uv_async_init(workerLoop, task, onAsyncCb);
-        uv_async_send(task);
-      } else {
-        conn->connectionEstablished();
-      }
-      conn->startRead();
+    // TODO: 改用accept, 使用uv_tcp_open
+    if (tcpServer->isSingleThread()) {
+      uv_loop_t* mainLoop = tcpServer->getMainLoop();
+      conn = std::make_shared<TcpConnection>(mainLoop, tcpServer->getNextId());
+      tcpServer->addTcpConnection(conn);
+      if (!uv_accept(server, conn->stream())) {}
+    } else {
+      int connFd = tcpServer->native_accept();
+      conn = std::make_shared<TcpConnection>(tcpServer->getWorkerLoop(), connFd, tcpServer->getNextId());
+      tcpServer->addTcpConnection(conn);
     }
-
+    conn->setMessageCallback(tcpServer->messageCallback);
+    conn->setConnectionCallback(tcpServer->connectionCallback);
+    conn->setCloseCallback(std::bind(closeConnection, tcpServer, _1));
+    conn->connectionEstablished();
+    conn->startRead();
   }
 
   int TcpServer::listen(const std::string host, int port) {
@@ -62,6 +57,7 @@ namespace ws {
     if (ret) {
       return ret;
     }
+    listened_ = true;
     return uv_run(loop_, UV_RUN_DEFAULT);
   }
 }
